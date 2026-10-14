@@ -50,7 +50,11 @@ class TmuxCase(unittest.TestCase):
     def events(self):
         if not self.log.exists():
             return []
-        return [json.loads(line) for line in self.log.read_text().splitlines() if line]
+        content = self.log.read_text()
+        lines = content.splitlines()
+        if not content.endswith('\n'):
+            lines = lines[:-1]
+        return [json.loads(line) for line in lines if line]
 
     def until(self, predicate, timeout=2):
         end = time.monotonic() + timeout

@@ -112,3 +112,33 @@ for label, value in CASES.items():
     def test(self, text=value):
         self.assert_transfer(text)
     setattr(InputTests, 'test_verbatim_' + label, test)
+
+
+class BufferIsolationTests(TmuxCase):
+    def test_only_this_paste_buffer_is_deleted(self):
+        self.start()
+        self.tmux('load-buffer', '-b', 'unrelated', '-', input=b'keep me')
+        self.assertEqual(self.input_script('paste', input=b'first').returncode, 0)
+        self.until(lambda: self.pasted() == b'first')
+        self.assertEqual(self.input_script('paste', input=b'second').returncode, 0)
+        self.until(lambda: self.pasted() == b'firstsecond')
+        self.assertEqual(self.tmux('show-buffer', '-b', 'unrelated').stdout, b'keep me')
+        self.assertEqual(len(self.tmux('list-buffers').stdout.splitlines()), 1)
+        self.assertEqual(self.submits(), [])
+
+    def test_paste_failure_removes_only_its_loaded_buffer(self):
+        import os
+        import shutil
+        from pathlib import Path
+        self.start()
+        self.tmux('load-buffer', '-b', 'unrelated', '-', input=b'keep me')
+        shim = Path(self.temp.name) / 'tmux'
+        real = shutil.which('tmux')
+        shim.write_text('#!' + __import__('support').PYTHON + '\nimport os, sys\nif "paste-buffer" in sys.argv:\n    sys.exit(23)\nos.execv(' + repr(real) + ', [' + repr(real) + '] + sys.argv[1:])\n')
+        shim.chmod(0o700)
+        env = dict(os.environ, PATH=self.temp.name + ':' + os.environ['PATH'])
+        p = self.script('input.py', 'paste', '--socket', self.socket, '--pane', self.pane, input=b'not delivered', env=env)
+        self.assertEqual(p.returncode, 1)
+        self.assertEqual(self.raw(), b'')
+        self.assertEqual(len(self.tmux('list-buffers').stdout.splitlines()), 1)
+        self.assertEqual(self.tmux('show-buffer', '-b', 'unrelated').stdout, b'keep me')

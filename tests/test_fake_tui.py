@@ -41,3 +41,16 @@ class FakeTuiTests(TmuxCase):
         self.until(lambda: any(e['event'] == 'exit' for e in self.events()))
         self.until(lambda: self.tmux('display-message', '-p', '-t', self.pane,
                                     '#{pane_dead}|#{pane_dead_status}').stdout.strip() == b'1|7')
+
+    def test_r_without_p_early_submission_regression(self):
+        # Model readline-style LF dispatch without executing real user shell text.
+        self.start('--bracketed-paste', 'on')
+        self.direct_paste(b'first\nsecond\n', flags=('-r', '-d'))
+        self.until(lambda: len(self.submits()) == 2)
+        self.assertEqual(self.raw(), b'first\nsecond\n')
+
+    def test_p_r_prevents_early_submission_regression(self):
+        self.start('--bracketed-paste', 'on')
+        self.direct_paste(b'first\nsecond\n', flags=('-p', '-r', '-d'))
+        self.until(lambda: self.pasted() == b'first\nsecond\n')
+        self.assertEqual(self.submits(), [])

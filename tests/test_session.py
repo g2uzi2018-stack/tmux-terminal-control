@@ -127,3 +127,16 @@ class SessionTests(TmuxCase):
                              '--cwd', self.temp.name, '--', '/not/installed/cli')
         self.assertEqual(result.returncode, 1)
         self.assertNotEqual(self.tmux('has-session', check=False).returncode, 0)
+
+    def test_failed_target_startup_keeps_diagnostics_and_exit_status(self):
+        executable = Path(self.temp.name) / 'unstartable'
+        executable.write_text('#!/missing/interpreter\n')
+        executable.chmod(0o700)
+        result = self.script('session.py', 'new', '--socket', self.socket, '--task', 'task',
+                             '--cwd', self.temp.name, '--', str(executable))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.pane = json.loads(result.stdout)['pane']
+        self.until(lambda: self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead}').stdout.strip() == b'1')
+        self.assertIn(b'FileNotFoundError', self.tmux('capture-pane', '-p', '-t', self.pane).stdout)
+        self.assertEqual(self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead_status}').stdout.strip(), b'1')
+        self.assertEqual(self.cleanup_script().returncode, 0)
