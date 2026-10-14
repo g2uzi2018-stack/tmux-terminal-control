@@ -30,11 +30,22 @@ class Tmux:
         self.deadline = deadline
 
     def run(self, *args, input=None):
+        return self._run(list(map(literal_arg, args)), input=input)
+
+    def batch(self, commands):
+        args = []
+        for command in commands:
+            if args:
+                args.append(";")
+            args.extend(map(literal_arg, command))
+        return self._run(args)
+
+    def _run(self, args, input=None):
         timeout = 3.0 if self.deadline is None else self.deadline - time.monotonic()
         if timeout <= 0.01:
             raise DeadlineReached()
         try:
-            p = subprocess.run(['tmux', '-L', self.socket, *map(literal_arg, args)], input=input,
+            p = subprocess.run(['tmux', '-L', self.socket, *args], input=input,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             raise ToolError('tmux command timed out within its allowed limit') from exc
