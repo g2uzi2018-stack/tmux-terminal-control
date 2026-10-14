@@ -104,6 +104,7 @@ CASES = {
     'backticks': 'literal ' + chr(96) + 'uname' + chr(96) + ' and backslash \\;',
     'chinese': '你好，原样传输；',
     'blank_lines': 'first\n\nthird',
+    'blank_only': '\n\n',
     'trailing_newline': 'first\n',
     'carriage_return': 'first\rsecond',
     'long_input': '中文-$HOME;' * 2000,
