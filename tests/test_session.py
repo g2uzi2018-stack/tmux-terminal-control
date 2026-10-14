@@ -140,3 +140,10 @@ class SessionTests(TmuxCase):
         self.assertIn(b'FileNotFoundError', self.tmux('capture-pane', '-p', '-t', self.pane).stdout)
         self.assertEqual(self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead_status}').stdout.strip(), b'1')
         self.assertEqual(self.cleanup_script().returncode, 0)
+
+    def test_fixture_cleanup_removes_its_exact_socket_endpoint(self):
+        self.start()
+        endpoint = Path(os.environ.get('TMUX_TMPDIR') or '/tmp') / ('tmux-' + str(os.getuid())) / self.socket
+        self.assertTrue(endpoint.exists())
+        self.destroy()
+        self.assertFalse(endpoint.exists())

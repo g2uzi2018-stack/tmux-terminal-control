@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -46,6 +47,16 @@ class TmuxCase(unittest.TestCase):
     def destroy(self):
         # Always scoped to this test's unique socket, never the default server.
         self.tmux('kill-server', check=False)
+        endpoint = Path(os.environ.get('TMUX_TMPDIR') or '/tmp') / ('tmux-' + str(os.getuid())) / self.socket
+        try:
+            info = endpoint.lstat()
+            if stat.S_ISSOCK(info.st_mode) and info.st_uid == os.getuid():
+                # This exact UUID endpoint was created by this test, not found by prefix.
+                if self.tmux('has-session', check=False).returncode != 0:
+                    if endpoint.lstat().st_ino == info.st_ino:
+                        endpoint.unlink()
+        except FileNotFoundError:
+            pass
 
     def events(self):
         if not self.log.exists():
