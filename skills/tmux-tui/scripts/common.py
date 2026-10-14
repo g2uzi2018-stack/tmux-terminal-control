@@ -31,7 +31,7 @@ class Tmux:
 
     def run(self, *args, input=None):
         timeout = 3.0 if self.deadline is None else self.deadline - time.monotonic()
-        if timeout <= 0:
+        if timeout <= 0.01:
             raise DeadlineReached()
         try:
             p = subprocess.run(['tmux', '-L', self.socket, *map(literal_arg, args)], input=input,
