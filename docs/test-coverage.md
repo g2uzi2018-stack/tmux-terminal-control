@@ -33,3 +33,5 @@ send-keys -l 的尾分号丢失（含 --）、前导 - 被当作参数以及 bra
 -r 与 -p -r 的多行差异使用假 TUI 的 readline 式 LF 提交规则验证：即使目标启用 bracketed paste，只用 -r 仍会触发提前提交，-p -r 保留全文且无提交。范围遵守「只通过假 TUI 测试」；没有重新运行实际 bash/readline，也不把该模型测试当成 bash 或真实 AI CLI 验收。
 
 完整本机输出见 test-results.txt；版本/依赖见 environment.md。Skill frontmatter 另以 skill-creator quick_validate.py 校验。其 PyYAML 6.0.3 只安装到 Windows 宿主的临时开发目录，不属于项目运行或测试依赖。
+
+测试残留验收：test_fixture_cleanup_removes_its_exact_socket_endpoint 检查拆除后精确 socket 文件不存在；测试 teardown 核对 uid、inode 和无运行会话后，只删除本例 UUID 端点。生产 list 对不明失效 socket 仅报告 error，不删除。

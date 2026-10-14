@@ -43,6 +43,7 @@ test_creation_history_remain_and_metadata (test_session.SessionTests.test_creati
 test_cwd_and_task_ending_semicolon_are_literal (test_session.SessionTests.test_cwd_and_task_ending_semicolon_are_literal) ... ok
 test_existing_socket_cannot_be_reused_or_respawned (test_session.SessionTests.test_existing_socket_cannot_be_reused_or_respawned) ... ok
 test_failed_target_startup_keeps_diagnostics_and_exit_status (test_session.SessionTests.test_failed_target_startup_keeps_diagnostics_and_exit_status) ... ok
+test_fixture_cleanup_removes_its_exact_socket_endpoint (test_session.SessionTests.test_fixture_cleanup_removes_its_exact_socket_endpoint) ... ok
 test_history_limit_change_after_creation_does_not_apply (test_session.SessionTests.test_history_limit_change_after_creation_does_not_apply) ... ok
 test_invalid_program_does_not_create_server (test_session.SessionTests.test_invalid_program_does_not_create_server) ... ok
 test_list_reports_owned_task_and_unknown_session (test_session.SessionTests.test_list_reports_owned_task_and_unknown_session) ... ok
@@ -76,6 +77,8 @@ test_static_busy_is_not_quiet_candidate (test_wait.WaitTests.test_static_busy_is
 test_unchanged_after_submit_never_returns_still (test_wait.WaitTests.test_unchanged_after_submit_never_returns_still) ... ok
 
 ----------------------------------------------------------------------
-Ran 70 tests in 8.495s
+Ran 71 tests in 8.327s
 
 OK
+
+Final socket discovery: []

@@ -49,13 +49,13 @@ new 用 -f /dev/null、pane 创建前 history-limit、空 shell → remain-on-ex
 
 ## 已知限制与版本验收
 
-轮询可能错过两次采样间的瞬时变化；prompt 依赖区域/具体 regex，基线相同提示再次出现保守排除，正文泛词不可靠。多行能力由调用方声明，不能检测声明失真。同一 pane 必须串行。全屏长回答可能不入历史，需目标滚动/导出；静止不是任务完成。
+轮询可能错过两次采样间的瞬时变化；prompt 依赖区域/具体 regex，基线相同提示再次出现保守排除，正文泛词不可靠。多行能力由调用方声明，不能检测声明失真。同一 pane 必须串行。服务器退出后可能残留失效 socket，list 会报告 error；不凭前缀删除不明端点。测试只删除自己创建的精确 UUID 端点。全屏长回答可能不入历史，需目标滚动/导出；静止不是任务完成。
 
 真实 CLI 需人工逐项检查输入、提交、多行、取消、审批、完成、隐藏思考、长回答，记录系统/WSL/tmux/CLI 版本、日期、命令/配置、证据，升级后重测。设计的 CLI 显示设置仅为候选，不承诺行为兼容。不关闭审批/沙箱。
 
 | 对象与版本 | 环境 / 日期 | 覆盖与结论 | 证据 |
 |---|---|---|---|
-| tmux 3.5a / Python 3.13.5 / 假 TUI | Debian 13.7 / WSL 2，2026-10-14 | 本机 70 项自动化测试通过，0 跳过；仅假 TUI | docs/test-results.txt |
+| tmux 3.5a / Python 3.13.5 / 假 TUI | Debian 13.7 / WSL 2，2026-10-14 | 本机 71 项自动化测试通过，0 跳过；仅假 TUI | docs/test-results.txt |
 | Codex CLI 0.162.1 | Debian 13 / WSL 2，2026-10-14 | 已执行 --version；TUI 待人工验收 | docs/environment.md |
 | OpenCode 2.0.28 | 同上 | 已执行 --version；TUI 待人工验收 | docs/environment.md |
 | Antigravity | 同上 | WSL PATH 未安装；待验收 | docs/environment.md |
