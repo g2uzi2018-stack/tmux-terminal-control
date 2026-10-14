@@ -31,9 +31,9 @@ python3 scripts/input.py paste --socket SOCKET --pane %0 [--multiline-verified E
 任何 LF/CR（包括末尾换行）按多行处理。只有目标版本和当前输入界面已实测支持 bracketed paste 才能提供非空 --multiline-verified 证据。该参数是能力声明，不自动检测或开启；未知/未开启必须在加载或粘贴前拒绝，不能先发再检查，不能压成一行。tmux 3.5a 无可用查询变量，新版本查询也不能替代行为验收。不要把 prompt 写进项目目录，确需文件则专用临时目录并清理。
 
 python3 scripts/input.py keys --socket SOCKET --pane %0 --key KEY [--key KEY ...]
-python3 scripts/input.py submit --socket SOCKET --pane %0 --received-confirmed [--key Enter]
+python3 scripts/input.py submit --socket SOCKET --pane %0 --received-confirmed [--key Enter|C-j|C-m]
 
-keys 仅预定义终端按键（方向、Escape、Tab、编辑键、C-a 至 C-z），不传文本/分隔符，Enter 只能 submit。submit 显式确认接收后只提交一次。stdout reason=keys / reason=submitted，退出码同 paste。按键含义按版本确认，Ctrl+C 可能退出，不统一当取消。
+keys 仅预定义终端按键（方向、Escape、Tab、编辑键、C-a 至 C-z（C-j/C-m 归提交）），不传文本/分隔符，Enter 只能 submit。submit 显式确认接收后只提交一次。stdout reason=keys / reason=submitted，退出码同 paste。按键含义按版本确认，Ctrl+C 可能退出，不统一当取消。
 
 ## 本地等待
 

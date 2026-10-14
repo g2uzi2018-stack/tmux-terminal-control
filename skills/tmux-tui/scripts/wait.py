@@ -4,6 +4,7 @@ import argparse
 import base64
 import binascii
 import re
+import signal
 import sys
 import time
 from common import DeadlineReached, SUBMIT_KEYS, Tmux, ToolError, send_submit, validate_pane
@@ -22,6 +23,22 @@ def decode(value):
         return base64.b64decode(value, validate=True).decode('utf-8')
     except (binascii.Error, UnicodeError) as exc:
         raise ToolError('invalid pane round state') from exc
+
+def bounded_search(regex, text, deadline):
+    """A user-supplied regex must not escape the local wait budget."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise DeadlineReached()
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    def expired(signum, frame):
+        raise DeadlineReached()
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, remaining)
+    try:
+        return regex.search(text)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 def parse():
     p = Parser(description=__doc__)
@@ -84,6 +101,7 @@ def main():
         else:
             baseline = tmux.capture(pane)
             previous, quiet = baseline, None
+            tmux.set_pane_option(pane, '@aitui_baseline', '')
             tmux.set_pane_option(pane, '@aitui_changed', '0')
             tmux.set_pane_option(pane, '@aitui_previous', encode(previous))
             tmux.set_pane_option(pane, '@aitui_quiet_since', '')
@@ -91,7 +109,7 @@ def main():
             if a.mode == 'submit-and-wait':
                 send_submit(tmux, pane, a.key, a.received_confirmed)
         # Entire baseline detects residual lines even if they later move into the prompt area.
-        old_lines = {label: {line for line in baseline.splitlines() if regex.search(line)}
+        old_lines = {label: {line for line in baseline.splitlines() if bounded_search(regex, line, deadline)}
                      for label, regex in a.patterns}
         reason = 'timeout'
         while time.monotonic() < deadline:
@@ -99,9 +117,11 @@ def main():
             screen = tmux.capture(pane)
             now = time.monotonic()
             old_state = changed, previous, quiet
-            if screen != baseline:
+            if screen != baseline and not changed:
                 changed = True
-            busy = bool(a.busy and a.busy.search(screen))
+                # Persist the observation before a potentially expensive regex.
+                tmux.set_pane_option(pane, '@aitui_changed', '1')
+            busy = bool(a.busy and bounded_search(a.busy, screen, deadline))
             if screen != previous:
                 previous, quiet = screen, now if changed and not busy else None
             elif busy or not changed:
@@ -118,7 +138,7 @@ def main():
                     extra = ' exit_code=' + exit_code
                 break
             for label, regex in a.patterns:
-                if any(regex.search(line) and line not in old_lines[label]
+                if any(bounded_search(regex, line, deadline) and line not in old_lines[label]
                        for line in screen.splitlines()[-a.prompt_lines:]):
                     reason, extra = 'prompt', ' match=' + label
                     break

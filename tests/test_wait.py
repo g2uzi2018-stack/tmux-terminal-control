@@ -162,3 +162,41 @@ class WaitTests(TmuxCase):
         self.assert_result(self.wait_script('submit-and-wait', '--prompt', 'approval=^APPROVAL: .+$', timeout_ms=70), 'timeout', 1)
         self.assert_result(self.wait_script('resume', '--prompt', 'approval=^APPROVAL: .+$'), 'still', 1)
         self.assertEqual(len(self.submits()), 1)
+
+    def test_pathological_regex_cannot_exceed_wait_budget(self):
+        self.start('--initial-prompt', 'a' * 70)
+        started = time.monotonic()
+        result = self.wait_script('begin', '--busy-regex', '(a+)+b', timeout_ms=100)
+        self.assert_result(result, 'timeout', 0)
+        self.assertLess(time.monotonic() - started, 0.6)
+        self.assertEqual(self.submits(), [])
+
+    def test_observed_change_survives_regex_timeout_then_resume(self):
+        self.prepare('--mode', 'stale', '--initial-prompt', 'a' * 70)
+        first = self.wait_script('submit-and-wait', '--busy-regex', '(a+)+b', timeout_ms=120)
+        self.assert_result(first, 'timeout', 1)
+        self.assertEqual(self.tmux('show-options', '-pqv', '-t', self.pane, '@aitui_changed').stdout.strip(), b'1')
+        self.assert_result(self.wait_script('resume'), 'still', 1)
+        self.assertEqual(len(self.submits()), 1)
+
+    def test_new_ready_prompt_uses_configured_label(self):
+        self.prepare('--mode', 'still')
+        result = self.wait_script('submit-and-wait', '--prompt', 'ready=^WAITING$')
+        self.assertIn('match=ready', self.assert_result(result, 'prompt', 1))
+
+    def test_pane_disappears_while_socket_remains_is_error(self):
+        self.prepare('--mode', 'unchanged')
+        self.tmux('new-session', '-d', '-s', 'keep-server', '/bin/sh')
+        timer = threading.Timer(0.1, lambda: self.tmux('kill-pane', '-t', self.pane, check=False))
+        timer.start()
+        try:
+            self.assert_result(self.wait_script(timeout_ms=500), 'error')
+            self.assertEqual(self.tmux('has-session', '-t', '=keep-server').returncode, 0)
+        finally:
+            timer.join()
+
+    def test_corrupt_round_state_is_error_without_submit(self):
+        self.start()
+        self.tmux('set-option', '-p', '-t', self.pane, '@aitui_baseline', 'not base64!')
+        self.assert_result(self.wait_script('resume'), 'error', 0)
+        self.assertEqual(self.submits(), [])
