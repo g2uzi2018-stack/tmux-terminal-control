@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Bounded local screen polling with pane-local round state."""
+import argparse
+import base64
+import binascii
+import re
+import sys
+import time
+from common import DeadlineReached, SUBMIT_KEYS, Tmux, ToolError, send_submit, validate_pane
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ToolError(message)
+
+def encode(screen):
+    return base64.b64encode(screen.encode('utf-8')).decode('ascii')
+
+def decode(value):
+    if not value:
+        raise ToolError('no active round; use begin or submit-and-wait')
+    try:
+        return base64.b64decode(value, validate=True).decode('utf-8')
+    except (binascii.Error, UnicodeError) as exc:
+        raise ToolError('invalid pane round state') from exc
+
+def parse():
+    p = Parser(description=__doc__)
+    p.add_argument('mode', choices=('begin', 'resume', 'submit-and-wait'))
+    p.add_argument('--socket', required=True)
+    p.add_argument('--pane', required=True)
+    p.add_argument('--timeout-ms', type=int, required=True)
+    p.add_argument('--shell-timeout-ms', type=int, required=True)
+    p.add_argument('--poll-ms', type=int, default=50)
+    p.add_argument('--still-ms', type=int, default=600)
+    p.add_argument('--prompt-lines', type=int, default=4)
+    p.add_argument('--prompt', action='append', default=[], metavar='LABEL=REGEX')
+    p.add_argument('--busy-regex')
+    p.add_argument('--no-screen', action='store_true')
+    p.add_argument('--received-confirmed', action='store_true')
+    p.add_argument('--key', choices=sorted(SUBMIT_KEYS), default='Enter')
+    a = p.parse_args()
+    if a.timeout_ms <= 0 or a.shell_timeout_ms - a.timeout_ms < 250:
+        raise ToolError('timeout must be positive and leave at least 250ms before Shell timeout')
+    if min(a.poll_ms, a.still_ms, a.prompt_lines) <= 0:
+        raise ToolError('poll-ms, still-ms and prompt-lines must be positive')
+    if a.mode == 'submit-and-wait' and not a.received_confirmed:
+        raise ToolError('submission requires --received-confirmed')
+    a.patterns = []
+    try:
+        for prompt in a.prompt:
+            label, sep, pattern = prompt.partition('=')
+            if not sep or not pattern or not re.fullmatch(r'[A-Za-z0-9_-]+', label):
+                raise ToolError('prompt must be LABEL=REGEX with a simple label')
+            a.patterns.append((label, re.compile(pattern)))
+        a.busy = re.compile(a.busy_regex, re.MULTILINE) if a.busy_regex else None
+    except re.error as exc:
+        raise ToolError('invalid regular expression: ' + str(exc)) from exc
+    validate_pane(a.pane)
+    return a
+
+def main():
+    started = time.monotonic()
+    a = None
+    screen = None
+    changed = False
+    reason, extra = 'error', ''
+    try:
+        a = parse()
+        deadline = started + a.timeout_ms / 1000
+        tmux = Tmux(a.socket, deadline)
+        pane = a.pane
+        if a.mode == 'resume':
+            baseline = decode(tmux.pane_option(pane, '@aitui_baseline'))
+            flag = tmux.pane_option(pane, '@aitui_changed')
+            if flag not in ('0', '1'):
+                raise ToolError('invalid round changed flag')
+            changed = flag == '1'
+            previous = decode(tmux.pane_option(pane, '@aitui_previous'))
+            quiet_value = tmux.pane_option(pane, '@aitui_quiet_since')
+            try:
+                quiet = float(quiet_value) if quiet_value else None
+            except ValueError as exc:
+                raise ToolError('invalid quiet timestamp') from exc
+        else:
+            baseline = tmux.capture(pane)
+            previous, quiet = baseline, None
+            tmux.set_pane_option(pane, '@aitui_changed', '0')
+            tmux.set_pane_option(pane, '@aitui_previous', encode(previous))
+            tmux.set_pane_option(pane, '@aitui_quiet_since', '')
+            tmux.set_pane_option(pane, '@aitui_baseline', encode(baseline))
+            if a.mode == 'submit-and-wait':
+                send_submit(tmux, pane, a.key, a.received_confirmed)
+        # Entire baseline detects residual lines even if they later move into the prompt area.
+        old_lines = {label: {line for line in baseline.splitlines() if regex.search(line)}
+                     for label, regex in a.patterns}
+        reason = 'timeout'
+        while time.monotonic() < deadline:
+            dead, exit_code = tmux.status(pane)
+            screen = tmux.capture(pane)
+            now = time.monotonic()
+            old_state = changed, previous, quiet
+            if screen != baseline:
+                changed = True
+            busy = bool(a.busy and a.busy.search(screen))
+            if screen != previous:
+                previous, quiet = screen, now if changed and not busy else None
+            elif busy or not changed:
+                quiet = None
+            elif quiet is None:
+                quiet = now
+            if old_state != (changed, previous, quiet):
+                tmux.set_pane_option(pane, '@aitui_changed', '1' if changed else '0')
+                tmux.set_pane_option(pane, '@aitui_previous', encode(previous))
+                tmux.set_pane_option(pane, '@aitui_quiet_since', '' if quiet is None else str(quiet))
+            if dead:
+                reason = 'exited'
+                if re.fullmatch(r'-?[0-9]+', exit_code):
+                    extra = ' exit_code=' + exit_code
+                break
+            for label, regex in a.patterns:
+                if any(regex.search(line) and line not in old_lines[label]
+                       for line in screen.splitlines()[-a.prompt_lines:]):
+                    reason, extra = 'prompt', ' match=' + label
+                    break
+            if reason == 'prompt':
+                break
+            if changed and not busy and quiet is not None and (now - quiet) * 1000 >= a.still_ms:
+                reason = 'still'
+                break
+            time.sleep(max(0, min(a.poll_ms / 1000, deadline - time.monotonic())))
+    except DeadlineReached:
+        reason = 'timeout'
+    except (ToolError, OSError) as exc:
+        reason = 'error'
+        print('error: ' + str(exc), file=sys.stderr)
+    elapsed = int((time.monotonic() - started) * 1000)
+    print('reason=' + reason + ' elapsed_ms=' + str(elapsed) + ' changed=' + str(int(changed)) + extra)
+    if screen is not None and not (a and a.no_screen):
+        sys.stdout.write(screen)
+        if not screen.endswith('\n'):
+            sys.stdout.write('\n')
+    return 3 if reason == 'timeout' else 1 if reason == 'error' else 0
+
+if __name__ == '__main__':
+    sys.exit(main())

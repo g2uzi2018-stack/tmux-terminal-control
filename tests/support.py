@@ -74,9 +74,9 @@ class TmuxCase(unittest.TestCase):
         self.tmux('load-buffer', '-b', name, '-', input=data)
         self.tmux('paste-buffer', *flags, '-b', name, '-t', self.pane)
 
-    def script(self, name, *args, input=None, timeout=4):
+    def script(self, name, *args, input=None, timeout=4, env=None):
         return subprocess.run([PYTHON, str(SCRIPTS / name), *args], input=input,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, env=env)
 
     def input_script(self, mode, *args, input=None):
         return self.script('input.py', mode, '--socket', self.socket, '--pane', self.pane,

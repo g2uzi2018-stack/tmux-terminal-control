@@ -37,9 +37,7 @@ class Tmux:
             p = subprocess.run(['tmux', '-L', self.socket, *map(literal_arg, args)], input=input,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
-            if self.deadline is not None:
-                raise DeadlineReached() from exc
-            raise ToolError('tmux command exceeded 3 seconds') from exc
+            raise ToolError('tmux command timed out within its allowed limit') from exc
         except OSError as exc:
             raise ToolError(str(exc)) from exc
         if p.returncode:
