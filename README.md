@@ -45,7 +45,7 @@ new 用 -f /dev/null、pane 创建前 history-limit、空 shell → remain-on-ex
 
     python3 -m unittest discover -s tests -v
 
-每例独立 socket、系统临时目录日志，结束清理；依赖缺失报错，不能跳过。覆盖原样输入、多行、单次提交、等待、续等、输出与隔离，不改真实 CLI 沙箱/审批。完整操作规则见 [SKILL.md](skills/tmux-tui/SKILL.md)。
+每例独立 socket、系统临时目录日志，结束清理；依赖缺失报错，不能跳过。覆盖原样输入、多行、单次提交、等待、续等、输出与隔离，不改真实 CLI 沙箱/审批。完整操作规则见 [SKILL.md](skills/tmux-tui/SKILL.md)。逐项覆盖见 [test-coverage.md](docs/test-coverage.md)，本机输出见 [test-results.txt](docs/test-results.txt)。
 
 ## 已知限制与版本验收
 
@@ -55,8 +55,21 @@ new 用 -f /dev/null、pane 创建前 history-limit、空 shell → remain-on-ex
 
 | 对象与版本 | 环境 / 日期 | 覆盖与结论 | 证据 |
 |---|---|---|---|
+| tmux 3.5a / Python 3.13.5 / 假 TUI | Debian 13.7 / WSL 2，2026-10-14 | 本机 70 项自动化测试通过，0 跳过；仅假 TUI | docs/test-results.txt |
 | Codex CLI 0.162.1 | Debian 13 / WSL 2，2026-10-14 | 已执行 --version；TUI 待人工验收 | docs/environment.md |
 | OpenCode 2.0.28 | 同上 | 已执行 --version；TUI 待人工验收 | docs/environment.md |
 | Antigravity | 同上 | WSL PATH 未安装；待验收 | docs/environment.md |
 
 Windows/WSL 调用端退出至少一分钟后的保活待测，不用 Linux 假 TUI 通过替代，不改全局保活配置。设计偏离见 [docs/design-deviations.md](docs/design-deviations.md)。
+
+
+### 假 TUI 演练
+
+日志放系统临时目录。用会话返回的 pane ID 替换 %0，先 capture 确认启动，再 paste，核对日志/画面后 submit-and-wait。目标支持 --bracketed-paste on/off、--mode unchanged/still/animation/approval/body/quote/stale/busy/exit、接收/响应延迟和 --ignore-submit。
+
+    logdir=$(mktemp -d)
+    python3 skills/tmux-tui/scripts/session.py new --socket ai-tui-practice --task practice --cwd "$PWD" -- /usr/bin/python3 "$PWD/tests/fake_tui.py" --log "$logdir/input.jsonl" --mode approval
+
+仅对该假 TUI 已开启的 bracketed paste 界面使用 --multiline-verified 'fake_tui/v1 paste on, verified by tests'。日志事件 raw（data_b64）、paste（text_b64）和 submit（count/text_b64）供核对，paste 不等于 submit。保留日志诊断后再 cleanup；活跃演练明确结束才加 --allow-active。
+
+目标程序单参数时 tmux 会解释成 shell command。session.py 用 Python 的 os.execv 启动器逐项传递 argv，随后替换为目标，不把程序路径/参数拼进 shell 文本。创建成功只证明会话已建，不证明目标启动成功，必须读屏/查 pane_dead；启动失败画面保留。
