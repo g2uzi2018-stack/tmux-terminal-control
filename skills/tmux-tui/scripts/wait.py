@@ -7,6 +7,7 @@ import re
 import signal
 import sys
 import time
+import warnings
 from common import DeadlineReached, SUBMIT_KEYS, Tmux, ToolError, send_submit, validate_pane
 
 class Parser(argparse.ArgumentParser):
@@ -23,6 +24,22 @@ def decode(value):
         return base64.b64decode(value, validate=True).decode('utf-8')
     except (binascii.Error, UnicodeError) as exc:
         raise ToolError('invalid pane round state') from exc
+
+def compile_pattern(pattern, flags=0):
+    """Reject patterns that compile only by ignoring a future-syntax warning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        try:
+            return re.compile(pattern, flags)
+        except (re.error, Warning) as exc:
+            raise ToolError('invalid regular expression: ' + str(exc)) from exc
+
+def prompt_region(screen, count):
+    """Last count physical lines after dropping trailing all-whitespace rows."""
+    lines = screen.splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines[-count:]
 
 def bounded_search(regex, text, deadline):
     """A user-supplied regex must not escape the local wait budget."""
@@ -63,15 +80,12 @@ def parse():
     if a.mode == 'submit-and-wait' and not a.received_confirmed:
         raise ToolError('submission requires --received-confirmed')
     a.patterns = []
-    try:
-        for prompt in a.prompt:
-            label, sep, pattern = prompt.partition('=')
-            if not sep or not pattern or not re.fullmatch(r'[A-Za-z0-9_-]+', label):
-                raise ToolError('prompt must be LABEL=REGEX with a simple label')
-            a.patterns.append((label, re.compile(pattern)))
-        a.busy = re.compile(a.busy_regex, re.MULTILINE) if a.busy_regex else None
-    except re.error as exc:
-        raise ToolError('invalid regular expression: ' + str(exc)) from exc
+    for prompt in a.prompt:
+        label, sep, pattern = prompt.partition('=')
+        if not sep or not pattern or not re.fullmatch(r'[A-Za-z0-9_-]+', label):
+            raise ToolError('prompt must be LABEL=REGEX with a simple label')
+        a.patterns.append((label, compile_pattern(pattern)))
+    a.busy = compile_pattern(a.busy_regex, re.MULTILINE) if a.busy_regex else None
     validate_pane(a.pane)
     return a
 
@@ -137,9 +151,10 @@ def main():
                 if re.fullmatch(r'-?[0-9]+', exit_code):
                     extra = ' exit_code=' + exit_code
                 break
+            region = prompt_region(screen, a.prompt_lines)
             for label, regex in a.patterns:
                 if any(bounded_search(regex, line, deadline) and line not in old_lines[label]
-                       for line in screen.splitlines()[-a.prompt_lines:]):
+                       for line in region):
                     reason, extra = 'prompt', ' match=' + label
                     break
             if reason == 'prompt':

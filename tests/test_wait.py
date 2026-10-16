@@ -63,6 +63,68 @@ class WaitTests(TmuxCase):
         self.prepare('--mode', 'body')
         self.assert_result(self.wait_script('submit-and-wait', '--prompt-lines', '4', '--prompt', 'approval=^APPROVAL: .+$'), 'still', 1)
 
+    def test_inline_approval_matches_default_prompt_lines(self):
+        self.prepare('--status-row', 'inline', '--mode', 'approval')
+        first = self.assert_result(self.wait_script('submit-and-wait', '--prompt', 'approval=^APPROVAL: .+$'), 'prompt', 1)
+        self.assertIn('match=approval', first)
+
+    def test_inline_body_approval_on_row_3_does_not_match(self):
+        self.prepare('--status-row', 'inline', '--mode', 'body')
+        result = self.wait_script('submit-and-wait', '--prompt-lines', '4', '--prompt', 'approval=^APPROVAL: .+$')
+        self.assert_result(result, 'still', 1)
+        rows = result.stdout.decode().split('\n', 1)[1].splitlines()
+        self.assertRegex(rows[2], r'^APPROVAL:')
+
+    def test_empty_prompt_region_does_not_return_prompt(self):
+        from pathlib import Path
+        self.start()
+        ready = Path(self.temp.name) / 'filled'
+        clear = Path(self.temp.name) / 'clear'
+        width = int(self.tmux('display-message', '-p', '-t', self.pane, '#{pane_width}').stdout)
+        height = int(self.tmux('display-message', '-p', '-t', self.pane, '#{pane_height}').stdout)
+        program = Path(self.temp.name) / 'fill_then_blank.py'
+        program.write_text(
+            'import os, time\n'
+            'from pathlib import Path\n'
+            'width, height = ' + str(width) + ', ' + str(height) + '\n'
+            'row = b"Y" * (width - 1)\n'
+            'os.write(1, b"\\x1b[H" + b"\\r\\n".join([row] * height))\n'
+            'Path(' + repr(str(ready)) + ').write_text("ready")\n'
+            'while not Path(' + repr(str(clear)) + ').exists():\n'
+            '    time.sleep(0.01)\n'
+            'os.write(1, b"\\x1b[2J\\x1b[H")\n'
+            'time.sleep(5)\n'
+        )
+        self.tmux('respawn-pane', '-k', '-t', self.pane, PYTHON, str(program))
+        self.until(lambda: ready.exists())
+        filled = self.tmux('capture-pane', '-p', '-t', self.pane).stdout.decode().splitlines()
+        self.assertTrue(filled and all(line.strip() for line in filled))
+        holder = {}
+
+        def run():
+            try:
+                holder['result'] = self.wait_script('begin', '--prompt', r'blank=^\s*$', timeout_ms=1500)
+            except Exception as exc:
+                holder['error'] = exc
+
+        worker = threading.Thread(target=run)
+        worker.start()
+        def baseline_is_filled():
+            raw = self.tmux('show-options', '-pqv', '-t', self.pane, '@aitui_baseline').stdout.strip()
+            try:
+                return bool(raw) and b'Y' in base64.b64decode(raw, validate=True)
+            except (ValueError, base64.binascii.Error):
+                return False
+
+        self.until(baseline_is_filled)
+        clear.write_text('1')
+        worker.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertNotIn('error', holder)
+        header = self.assert_result(holder['result'], 'still', 1)
+        self.assertNotIn('match=', header)
+        self.assertFalse(holder['result'].stdout.decode().split('\n', 1)[1].strip())
+
     def test_quoted_prompt_in_region_does_not_match_anchored_regex(self):
         self.prepare('--mode', 'quote')
         self.assert_result(self.wait_script('submit-and-wait', '--prompt', 'approval=^APPROVAL: .+$'), 'still', 1)
@@ -106,7 +168,8 @@ class WaitTests(TmuxCase):
 
     def test_invalid_limits_or_regex_error_before_submission(self):
         self.prepare()
-        for options in (['--timeout-ms', '1900'], ['--timeout-ms', '0'], ['--prompt', 'approval=['], ['--poll-ms', '0']):
+        for options in (['--timeout-ms', '1900'], ['--timeout-ms', '0'], ['--prompt', 'approval=['], ['--poll-ms', '0'],
+                        ['--prompt', 'approval=^[[:space:]]*x'], ['--busy-regex', '[[:space:]]']):
             self.assert_result(self.wait_script('submit-and-wait', *options), 'error', 0)
         self.assertEqual(self.submits(), [])
 

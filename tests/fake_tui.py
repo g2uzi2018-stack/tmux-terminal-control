@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--log', required=True)
     parser.add_argument('--bracketed-paste', choices=('on', 'off'), default='on')
     parser.add_argument('--mode', choices=('unchanged', 'still', 'animation', 'approval', 'body', 'quote', 'stale', 'busy', 'exit'), default='still')
+    parser.add_argument('--status-row', choices=('bottom', 'inline'), default='bottom')
     parser.add_argument('--receive-delay-ms', type=int, default=0)
     parser.add_argument('--response-delay-ms', type=int, default=0)
     parser.add_argument('--ignore-submit', action='store_true')
@@ -48,11 +49,13 @@ def main():
         size = os.get_terminal_size(fd)
         text = current.decode('utf-8', 'replace')
         shown = json.dumps(text, ensure_ascii=False)
-        # Fixed rows: body near top, prompt at physical bottom.
+        # Body stays on row 3. bottom keeps the status on the physical last row;
+        # inline draws it on row 8 and leaves the rows below blank.
         screen = '\x1b[2J\x1b[HFAKE TUI\x1b[3;1H' + body
         screen += '\x1b[5;1HINPUT: ' + shown[:max(0, size.columns - 9)]
         screen += '\x1b[6;1HSUBMITS: ' + str(count)
-        screen += '\x1b[' + str(size.lines) + ';1H' + status[:size.columns - 1]
+        row = 8 if args.status_row == 'inline' else size.lines
+        screen += '\x1b[' + str(row) + ';1H' + status[:size.columns - 1]
         os.write(1, screen.encode('utf-8'))
 
     def response():
