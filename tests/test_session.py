@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import time
 from support import PYTHON, ROOT, TmuxCase
@@ -140,6 +141,84 @@ class SessionTests(TmuxCase):
         self.assertIn(b'FileNotFoundError', self.tmux('capture-pane', '-p', '-t', self.pane).stdout)
         self.assertEqual(self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead_status}').stdout.strip(), b'1')
         self.assertEqual(self.cleanup_script().returncode, 0)
+
+    def socket_path(self, tmp=None):
+        root = Path(tmp or os.environ.get('TMUX_TMPDIR') or '/tmp')
+        return root / ('tmux-' + str(os.getuid())) / self.socket
+
+    def test_prune_removes_socket_after_server_killed(self):
+        self.start()
+        server = int(self.tmux('display', '-p', '#{pid}').stdout.strip())
+        pane = int(self.tmux('display', '-p', '-t', self.pane, '#{pane_pid}').stdout.strip())
+        self.assertNotEqual(server, os.getpid())
+        os.kill(server, 9)
+        self.addCleanup(lambda: self.reap(pane))
+        self.until(lambda: not Path('/proc/' + str(server)).exists())
+        endpoint = self.socket_path()
+        self.assertTrue(stat.S_ISSOCK(endpoint.lstat().st_mode))
+        result = self.script('session.py', 'prune', '--socket', self.socket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {'socket': self.socket, 'removed': True})
+        self.assertFalse(endpoint.exists())
+
+    def test_prune_refuses_live_server(self):
+        self.start()
+        endpoint = self.socket_path()
+        result = self.script('session.py', 'prune', '--socket', self.socket)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(b'cleanup', result.stderr)
+        self.assertTrue(stat.S_ISSOCK(endpoint.lstat().st_mode))
+        self.assertEqual(self.tmux('has-session', '-t', '=cli').returncode, 0)
+
+    def test_prune_refuses_regular_file(self):
+        endpoint = self.socket_path()
+        endpoint.parent.mkdir(parents=True, exist_ok=True)
+        endpoint.write_text('not-a-socket')
+        self.addCleanup(endpoint.unlink, missing_ok=True)
+        result = self.script('session.py', 'prune', '--socket', self.socket)
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(endpoint.is_file())
+
+    def test_prune_refuses_missing_path(self):
+        endpoint = self.socket_path()
+        self.assertFalse(endpoint.exists())
+        result = self.script('session.py', 'prune', '--socket', self.socket)
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(endpoint.exists())
+
+    def test_prune_refuses_name_without_prefix(self):
+        result = self.script('session.py', 'prune', '--socket', 'not-a-task')
+        self.assertEqual(result.returncode, 1)
+        outside = Path(os.environ.get('TMUX_TMPDIR') or '/tmp') / ('tmux-' + str(os.getuid())) / 'not-a-task'
+        self.assertFalse(outside.exists())
+
+    def test_prune_removes_dead_socket_in_custom_tmpdir(self):
+        env = dict(os.environ, TMUX_TMPDIR=self.temp.name)
+        self.addCleanup(lambda: subprocess.run(['tmux', '-L', self.socket, 'kill-server'], env=env,
+                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+        self.create(env=env)
+        probe = subprocess.run(['tmux', '-L', self.socket, 'display', '-p', '#{pid}'], env=env,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        pane = subprocess.run(['tmux', '-L', self.socket, 'display', '-p', '-t', self.pane, '#{pane_pid}'], env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
+        self.assertEqual(pane.returncode, 0, pane.stderr)
+        server = int(probe.stdout.strip())
+        self.addCleanup(lambda: self.reap(int(pane.stdout.strip())))
+        os.kill(server, 9)
+        self.until(lambda: not Path('/proc/' + str(server)).exists())
+        endpoint = self.socket_path(self.temp.name)
+        self.assertTrue(stat.S_ISSOCK(endpoint.lstat().st_mode))
+        result = self.script('session.py', 'prune', '--socket', self.socket, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {'socket': self.socket, 'removed': True})
+        self.assertFalse(endpoint.exists())
+
+    def reap(self, pid):
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
 
     def test_fixture_cleanup_removes_its_exact_socket_endpoint(self):
         self.start()

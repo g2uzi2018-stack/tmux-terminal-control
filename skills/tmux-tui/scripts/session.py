@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Create, discover and clean only explicitly marked task sessions."""
+"""Create, discover, prune and clean only explicitly marked task sessions."""
 import argparse
 import json
 import os
 from pathlib import Path
 import re
+import socket
 import stat
 import sys
 import uuid
@@ -102,6 +103,38 @@ def list_sessions():
             result.append(dict(socket=path.name, error=str(exc), owned=False))
     return result
 
+def prune(args):
+    name = socket_name(args.socket)
+    path = socket_dir() / name
+    try:
+        info = path.lstat()
+    except FileNotFoundError as exc:
+        raise ToolError('socket does not exist') from exc
+    if not stat.S_ISSOCK(info.st_mode):
+        raise ToolError('socket path is not a socket')
+    if info.st_uid != os.getuid():
+        raise ToolError('refusing to remove a socket owned by another user')
+    client = socket.socket(socket.AF_UNIX)
+    try:
+        try:
+            client.connect(os.fspath(path))
+        except ConnectionRefusedError:
+            pass
+        except OSError as exc:
+            raise ToolError('socket connect failed: ' + str(exc)) from exc
+        else:
+            raise ToolError('socket is still accepting connections; use cleanup')
+    finally:
+        client.close()
+    try:
+        current = path.lstat()
+    except FileNotFoundError as exc:
+        raise ToolError('socket disappeared before removal') from exc
+    if current.st_ino != info.st_ino:
+        raise ToolError('socket changed before removal')
+    path.unlink()
+    return dict(socket=name, removed=True)
+
 def cleanup(args):
     tmux = Tmux(socket_name(args.socket))
     if not re.fullmatch(r'[A-Za-z0-9_-]+', args.session):
@@ -140,9 +173,18 @@ def main():
     remove.add_argument('--session', required=True)
     remove.add_argument('--task', required=True)
     remove.add_argument('--allow-active', action='store_true')
+    drop = commands.add_parser('prune')
+    drop.add_argument('--socket', required=True)
     args = p.parse_args()
     try:
-        result = new(args) if args.mode == 'new' else cleanup(args) if args.mode == 'cleanup' else list_sessions()
+        if args.mode == 'new':
+            result = new(args)
+        elif args.mode == 'cleanup':
+            result = cleanup(args)
+        elif args.mode == 'prune':
+            result = prune(args)
+        else:
+            result = list_sessions()
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except (ToolError, OSError, ValueError) as exc:
