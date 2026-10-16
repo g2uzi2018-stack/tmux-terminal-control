@@ -18,12 +18,15 @@
 | pane/socket 消失不是 exited | missing_pane_is_error_not_exited、pane_disappears_while_socket_remains_is_error、socket_disappears_during_wait_is_error |
 | 续等保留本轮基线与变化状态 | resume_preserves_baseline_and_observed_change、resume_detects_change_that_arrives_after_first_timeout、observed_change_survives_regex_timeout_then_resume |
 | 排除旧提示和正文误匹配 | old_prompt_residual_is_excluded、resumed_old_prompt_still_excluded、body_prompt_outside_region_does_not_match、quoted_prompt_in_region_does_not_match_anchored_regex |
+| 去掉末尾空行后再取 prompt 区域 | inline_approval_matches_default_prompt_lines、inline_body_approval_on_row_3_does_not_match、empty_prompt_region_does_not_return_prompt。假 TUI `--status-row inline` 把状态画在第 8 行 |
+| 会触发警告的正则在提交前拒绝 | invalid_limits_or_regex_error_before_submission 追加 `approval=^[[:space:]]*x` 与 `--busy-regex [[:space:]]`，退出码 1，submits 为空 |
 | 运行短于调用方 timeout、固定首行、最多一份画面 | assert_result 覆盖全部等待结果；no_screen_outputs_only_header_within_shell_timeout；精确整帧核对；pathological_regex_cannot_exceed_wait_budget |
 | 可选忙碌模式 | static_busy_is_not_quiet_candidate |
 | 无接收确认/错误参数不提交 | no_receipt_confirmation_is_error_before_submission、invalid_limits_or_regex_error_before_submission |
 | 唯一 buffer 与失败清理隔离 | BufferIsolationTests：保留 unrelated buffer，成功/失败均只删除本次 buffer |
 | 创建前 history-limit、remain-on-exit、TERM、标记 | test_session.py 的 creation_history_remain_and_metadata、history_limit_change_after_creation_does_not_apply |
 | list / 自定义 TMUX_TMPDIR / 精确范围 cleanup | test_session.py 的 list_*、cleanup_*、existing_socket_cannot_be_reused_or_respawned |
+| prune 只删除确认失效的精确 socket | prune_removes_socket_after_server_killed、prune_removes_dead_socket_in_custom_tmpdir；拒绝活服务器、普通文件、缺失路径、非 ai-tui- 名称：prune_refuses_live_server、prune_refuses_regular_file、prune_refuses_missing_path、prune_refuses_name_without_prefix |
 | 启动失败诊断保留、argv/cwd 字面值 | failed_target_startup_keeps_diagnostics_and_exit_status、no_arguments_executable_with_spaces_is_not_shell_text、cwd_and_task_ending_semicolon_are_literal |
 
 ## 用户提供的 tmux 3.5a 回归结论
@@ -34,4 +37,4 @@ send-keys -l 的尾分号丢失（含 --）、前导 - 被当作参数以及 bra
 
 完整本机输出见 test-results.txt；版本/依赖见 environment.md。Skill frontmatter 另以 skill-creator quick_validate.py 校验。其 PyYAML 6.0.3 只安装到 Windows 宿主的临时开发目录，不属于项目运行或测试依赖。
 
-测试残留验收：test_fixture_cleanup_removes_its_exact_socket_endpoint 检查拆除后精确 socket 文件不存在；测试 teardown 核对 uid、inode 和无运行会话后，只删除本例 UUID 端点。生产 list 对不明失效 socket 仅报告 error，不删除。
+测试残留验收：test_fixture_cleanup_removes_its_exact_socket_endpoint 检查拆除后精确 socket 文件不存在；测试 teardown 核对 uid、inode 和无运行会话后，只删除本例 UUID 端点。生产 list 对不明失效 socket 仅报告 error，不删除。prune 另测：server 被 kill -9 后，只 unlink 这一个 ConnectionRefused 的精确 socket；活服务器、普通文件、缺失路径和非 ai-tui- 名称都拒绝。
