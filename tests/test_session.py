@@ -139,7 +139,9 @@ class SessionTests(TmuxCase):
         self.pane = json.loads(result.stdout)['pane']
         self.until(lambda: self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead}').stdout.strip() == b'1')
         self.assertIn(b'FileNotFoundError', self.tmux('capture-pane', '-p', '-t', self.pane).stdout)
-        self.assertEqual(self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead_status}').stdout.strip(), b'1')
+        # tmux 3.4 can expose pane_dead before reaping publishes pane_dead_status.
+        self.until(lambda: self.tmux('display-message', '-p', '-t', self.pane,
+                                    '#{pane_dead_status}').stdout.strip() == b'1')
         self.assertEqual(self.cleanup_script().returncode, 0)
 
     def socket_path(self, tmp=None):

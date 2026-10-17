@@ -7,6 +7,8 @@ description: 通过隔离 tmux 会话操控持续运行的交互式 CLI/TUI，�
 
 ## 环境与会话
 
+本机 WSL 调用真实 CLI 工作进程前，按用户要求先在同一次 `bash -ic` 中执行 `proxy_on && 启动命令`；开启失败就不启动。本机该函数控制持久透明代理，不自动导出 HTTP_PROXY。需要显式代理时，在创建 tmux server 的同一调用中设置经过确认的代理环境；统一技能支持 `cowork.py start --proxy-url`，详情见其 CLI 配置说明。其他环境采用当地已确认的网络配置。
+
 从任务取得目标及参数、cwd、操作和新建/续接意图，只在缺失信息影响对象时询问。检查 OS、tmux、Python 3、目标版本及解释器；缺依赖如实报告。使用实际启动环境解析的 CLI 绝对路径，必要时初始化 nvm，不假定 bash -lc 加载全部环境。Linux/WSL 中运行 tmux、脚本和目标；Windows 确认发行版，Bash 逻辑交给 WSL，--exec 不解释变量/管道。UTF-8 文本经 stdin，不能拼进 shell 命令。保留 tmux 的 TERM。目标需要代理或其他环境变量时，在启动 tmux server 的同一条命令里导出，再用该 pane 进程的 /proc/PANE_PID/environ 核对；只看 tmux show-environment 不够。具体开关和地址不写在这里。
 
 每个任务独立 ai-tui- socket、一个 session/pane。记录发行版、socket、session、%数字 pane ID、cwd、启动 argv。后续显式指定 socket/pane，同一 pane 串行。续接先 list、核对标记/程序/画面，不重复启动。脚本相对本 Skill 位于 scripts/。

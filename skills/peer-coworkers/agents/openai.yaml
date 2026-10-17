@@ -1,0 +1,3 @@
+interface:
+  display_name: "Peer Coworkers"
+  short_description: "Coordinate bounded CLI workers with tmux and verified handoffs"
