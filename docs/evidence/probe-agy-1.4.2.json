@@ -1,0 +1,198 @@
+{
+  "profile": "agy",
+  "version": "1.4.2",
+  "date": "2026-10-18T03:45:26.456978+00:00",
+  "origin": "interactive behavioral probe",
+  "limits": {
+    "per_check_timeout_ms": 90000,
+    "total_budget_seconds": 540
+  },
+  "command": [
+    "agy",
+    "--sandbox"
+  ],
+  "checks": {
+    "readiness": {
+      "status": "unverified",
+      "evidence": "literal input was not visible; no Enter sent",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:45:30.551004+00:00",
+      "elapsed_seconds": 4.093,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "paste": {
+      "status": "passed",
+      "method": "literal Unicode and shell metacharacters displayed after separate paste",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:45:32.483234+00:00",
+      "elapsed_seconds": 1.927,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "single_line": {
+      "status": "passed",
+      "method": "computed reverse token absent from prompt observed only after one Enter",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:45:46.519228+00:00",
+      "elapsed_seconds": 14.036,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "multiline": {
+      "status": "passed",
+      "method": "raw 2004h, both literal input lines, no early response, computed reply after one Enter",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:45:56.289625+00:00",
+      "elapsed_seconds": 12.273,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "cancel": {
+      "status": "blocked",
+      "evidence": "human gate observed; no approval sent (not a verified recognizer)",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:46:53.362665+00:00",
+      "elapsed_seconds": 62.064,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "approval": {
+      "status": "blocked",
+      "evidence": "human gate observed; no approval sent (not a verified recognizer)",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:47:16.003175+00:00",
+      "elapsed_seconds": 22.64,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "result_file": {
+      "status": "blocked",
+      "evidence": "human gate observed; no approval sent (not a verified recognizer)",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:47:28.137549+00:00",
+      "elapsed_seconds": 14.629,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "long_response": {
+      "status": "passed",
+      "method": "all 150 computed lines recovered through capture-pane -S -, beyond the 45-row viewport",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:47:51.640442+00:00",
+      "elapsed_seconds": 25.98,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "lines": 150,
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    },
+    "cleanup": {
+      "status": "passed",
+      "method": "exact marked CLI session removed, same-server sentinel survived, then sentinel and exact stale socket cleaned",
+      "version": "1.4.2",
+      "date": "2026-10-18T03:47:53.436324+00:00",
+      "elapsed_seconds": 1.796,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {
+        "HTTP_PROXY": true,
+        "HTTPS_PROXY": true,
+        "ALL_PROXY": true,
+        "NO_PROXY": true,
+        "http_proxy": true,
+        "https_proxy": true,
+        "all_proxy": true,
+        "no_proxy": true
+      }
+    }
+  },
+  "publication": "Reviewed summary; raw screens, account information and artifact paths excluded. Raw evidence retained locally."
+}

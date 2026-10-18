@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-18T01:56:10.418718+00:00",
+  "timeout_seconds": 120,
+  "experiments": [
+    {
+      "profile": "codex",
+      "location": "state-default",
+      "outcome": "refusal",
+      "timed_out": false,
+      "exit": 0,
+      "elapsed_seconds": 11.051,
+      "valid_result": false,
+      "command": [
+        "codex",
+        "exec",
+        "--sandbox",
+        "workspace-write",
+        "--ephemeral"
+      ]
+    },
+    {
+      "profile": "codex",
+      "location": "tmp",
+      "outcome": "success",
+      "timed_out": false,
+      "exit": 0,
+      "elapsed_seconds": 13.922,
+      "valid_result": true,
+      "command": [
+        "codex",
+        "exec",
+        "--sandbox",
+        "workspace-write",
+        "--ephemeral"
+      ]
+    },
+    {
+      "profile": "cursor",
+      "location": "state-default",
+      "outcome": "refusal",
+      "timed_out": false,
+      "exit": 0,
+      "elapsed_seconds": 21.017,
+      "valid_result": false,
+      "command": [
+        "cursor-agent",
+        "--sandbox",
+        "enabled",
+        "--print"
+      ]
+    },
+    {
+      "profile": "cursor",
+      "location": "tmp",
+      "outcome": "success",
+      "timed_out": false,
+      "exit": 0,
+      "elapsed_seconds": 19.149,
+      "valid_result": true,
+      "command": [
+        "cursor-agent",
+        "--sandbox",
+        "enabled",
+        "--print"
+      ]
+    }
+  ]
+}

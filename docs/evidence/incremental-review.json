@@ -1,0 +1,29 @@
+{
+  "STATUS": "PARTIAL",
+  "RESULT": [
+    "No remaining defect confirmed in the four specified repairs. Incremental source review and independent checks support the changes; real-pane validation was restricted by sandbox socket access.",
+    "records.py read_json defaults to the same configured 64 MiB bound used by save; config.py validates max_record_bytes as a positive non-bool integer. Explicit config/result/question limits remain separate. Oversized saves fail before os.replace and remove the temporary file.",
+    "observation.py preserves cancelling when a current-round question remains. interactions.py also fences delivery on any persisted current-round cancel intervention, including uncertain status, independently of the current state.",
+    "config.py captures all eight proxy variables using None for absence; tasks.py launch_environment removes tombstones and restores parent values in finally. probe.py compares absent requested values with absent /proc entries.",
+    "tests/test_status.py has no repository evidence write; its only content-write call is the unstartable executable under self.temp.name. Corresponding max_record_bytes documentation and example configuration agree with implementation."
+  ],
+  "EVIDENCE": [
+    "The existing 10000-file regression independently passed prepare -> collect -> read task.json above 4 MiB -> accept -> reload accepted. The configured limit/preserved-record/recovery regression also passed.",
+    "A separate reproduction executed a real Bash command unsetting all eight proxy variables and checked exactly eight None tombstones. launch_environment removed every key and restored all inherited values even when its body raised RuntimeError.",
+    "A separate mocked-terminal reproduction performed cancel -> leftover question wait -> reload -> forced awaiting_reply -> cancel. Exactly one send-keys occurred. Changing the intervention to uncertain and forcing running still prevented another Escape.",
+    "A separate probe.Driver.start branch check mocked pane creation and /proc input: all eight requested removals matched a proxy-free environment; introducing HTTP_PROXY=stale raised ProbeStopped(failed) with HTTP_PROXY comparison false.",
+    "Repository file and symlink fingerprints, including ignored files outside .git, were equal before and after the 14-test targeted run. PYTHONDONTWRITEBYTECODE=1 and -B prevented cache writes. Subsequent checks only read repository sources and used automatically cleaned /tmp scratch."
+  ],
+  "VALIDATION": [
+    "Targeted unittest run: 14 tests, 8 passed; 6 could not exercise their behavior because tmux connections returned Operation not permitted. Passed: two snapshot record regressions; config profile/limit validation; real command capture/failure; four ReaperTests unit checks. No full suite or live model probes ran.",
+    "Environment-blocked cases: test_config.ConfigTests.test_proxy_command_removals_reach_real_pane_and_parent_is_restored; test_interactions.InteractionTests.test_question_cannot_rearm_single_attempt_cancellation; all four test_status.RealReaperTests. Reported failures/errors originate at tmux startup, not repair assertions.",
+    "Independent controlled reproductions for proxy tombstones/restoration, cancellation fencing and probe absent-variable comparison all passed. AST inspection of the entire status module found only the temporary fixture content write at line 69."
+  ],
+  "REMAINING_WORK": [
+    "Primary should rerun the six named real-tmux checks in an environment permitted to connect to its unique tmux sockets. This pass did not change permissions or request escalation. Real worker proxy absence and real-terminal single-Escape behavior remain unverified here."
+  ],
+  "RISKS": [
+    "Mocked pane/proc checks establish branch behavior but do not replace an end-to-end pane launch. The primary reported 170 tests, but that count was not used as proof.",
+    "No repository mutations were made. Scope remains limited to the recent four repairs; broader implementation, live model compatibility, and unrelated external artifacts were not reviewed."
+  ]
+}

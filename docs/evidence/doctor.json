@@ -1,0 +1,67 @@
+[
+  {
+    "profile": "codex",
+    "version": "codex-cli 0.163.0",
+    "version_matches": true,
+    "warning": null,
+    "passed": [
+      "readiness",
+      "paste",
+      "single_line",
+      "multiline",
+      "result_file",
+      "long_response",
+      "cleanup"
+    ],
+    "failed": [
+      "cancel",
+      "approval"
+    ]
+  },
+  {
+    "profile": "agy",
+    "version": "1.4.2",
+    "version_matches": false,
+    "warning": "not retested after upgrade or no matching probe report",
+    "passed": [
+      "readiness",
+      "paste",
+      "single_line",
+      "multiline",
+      "approval",
+      "long_response",
+      "cleanup"
+    ],
+    "failed": [
+      "cancel",
+      "result_file"
+    ]
+  },
+  {
+    "profile": "cursor",
+    "version": "2026.10.16-e3cb207",
+    "version_matches": true,
+    "warning": null,
+    "passed": [
+      "readiness",
+      "paste",
+      "single_line",
+      "cancel",
+      "approval",
+      "result_file",
+      "long_response",
+      "cleanup"
+    ],
+    "failed": [
+      "multiline"
+    ]
+  },
+  {
+    "profile": "opencode",
+    "version": null,
+    "version_matches": null,
+    "warning": "compatibility-only profile not executed",
+    "passed": [],
+    "failed": []
+  }
+]

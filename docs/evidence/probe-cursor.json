@@ -1,0 +1,102 @@
+{
+  "profile": "cursor",
+  "version": "2026.10.16-e3cb207",
+  "date": "2026-10-18T02:12:21.810858+00:00",
+  "origin": "interactive behavioral probe",
+  "command": [
+    "cursor-agent",
+    "--sandbox",
+    "enabled"
+  ],
+  "checks": {
+    "readiness": {
+      "status": "passed",
+      "method": "literal nonce received with observed bracketed-paste mode, no Enter",
+      "elapsed_seconds": 2.55,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "paste": {
+      "status": "passed",
+      "method": "literal Unicode and shell metacharacters displayed after separate paste",
+      "elapsed_seconds": 2.59,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "single_line": {
+      "status": "passed",
+      "method": "computed reverse token absent from prompt observed only after one Enter",
+      "elapsed_seconds": 9.689,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "multiline": {
+      "status": "timeout",
+      "evidence": "",
+      "elapsed_seconds": 25.042,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "cancel": {
+      "status": "passed",
+      "method": "heartbeat proved live execution; one Escape; process gone, no completion file, explicit interruption marker",
+      "elapsed_seconds": 9.601,
+      "submissions": 1,
+      "escapes": 1,
+      "cleanup_errors": [],
+      "key": "Escape",
+      "stopped_pattern": "^\\s*(?:(?:[\u2022\u25cf\u25a0]\\s*)?(?:Turn interrupted.*|Request cancelled.*|Generation cancelled.*|Interrupted.*)|\\$\\s+.*\\sCancelled\\s+\u2022\\s+[0-9.]+(?:ms|s))\\s*$",
+      "pane_environment_matches": {}
+    },
+    "approval": {
+      "status": "passed",
+      "method": "profile regex matched actual prompt region while requested file remained absent; no approval sent",
+      "elapsed_seconds": 8.472,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "prompt_lines": 8,
+      "patterns": [
+        "^\\s*Write to this file\\?$"
+      ],
+      "pane_environment_matches": {}
+    },
+    "result_file": {
+      "status": "passed",
+      "method": "bounded no-follow JSON read equals unpredictable nonce",
+      "elapsed_seconds": 8.481,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "long_response": {
+      "status": "passed",
+      "method": "all 150 computed lines recovered through capture-pane -S -, beyond the 45-row viewport",
+      "elapsed_seconds": 14.69,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "lines": 150,
+      "pane_environment_matches": {}
+    },
+    "cleanup": {
+      "status": "passed",
+      "method": "exact marked CLI session removed, same-server sentinel survived, then sentinel and exact stale socket cleaned",
+      "elapsed_seconds": 2.557,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    }
+  },
+  "publication": "Reviewed summary; raw screens, account information and artifact paths excluded. Raw evidence retained locally."
+}

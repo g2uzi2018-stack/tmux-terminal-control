@@ -1,0 +1,125 @@
+{
+  "profile": "agy",
+  "version": "1.4.0",
+  "date": "2026-10-18T02:26:07.276847+00:00",
+  "origin": "interactive behavioral probe",
+  "limits": {
+    "per_check_timeout_ms": 90000,
+    "total_budget_seconds": 540
+  },
+  "invocation_limits": {
+    "per_check_timeout_ms": 90000,
+    "total_budget_seconds": 540
+  },
+  "command": [
+    "agy",
+    "--sandbox"
+  ],
+  "checks": {
+    "readiness": {
+      "status": "passed",
+      "method": "literal nonce received with observed bracketed-paste mode, no Enter",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:26:09.411009+00:00",
+      "elapsed_seconds": 2.131,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "paste": {
+      "status": "passed",
+      "method": "literal Unicode and shell metacharacters displayed after separate paste",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:26:11.310827+00:00",
+      "elapsed_seconds": 1.899,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "single_line": {
+      "status": "passed",
+      "method": "computed reverse token absent from prompt observed only after one Enter",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:26:21.864495+00:00",
+      "elapsed_seconds": 13.037,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "multiline": {
+      "status": "passed",
+      "method": "raw 2004h, both literal input lines, no early response, computed reply after one Enter",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:26:36.053931+00:00",
+      "elapsed_seconds": 14.189,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "cancel": {
+      "status": "blocked",
+      "evidence": "human gate observed; no approval sent (not a verified recognizer)",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:26:52.768040+00:00",
+      "elapsed_seconds": 19.217,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "approval": {
+      "status": "passed",
+      "method": "profile regex matched actual prompt region while requested file remained absent; no approval sent",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:27:10.109324+00:00",
+      "elapsed_seconds": 17.341,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "prompt_lines": 8,
+      "patterns": [
+        "^Allow creation of this file\\?$"
+      ],
+      "pane_environment_matches": {}
+    },
+    "result_file": {
+      "status": "blocked",
+      "evidence": "human gate observed; no approval sent (not a verified recognizer)",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:27:21.757753+00:00",
+      "elapsed_seconds": 14.157,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "long_response": {
+      "status": "passed",
+      "method": "all 150 computed lines recovered through capture-pane -S -, beyond the 45-row viewport",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:27:48.102786+00:00",
+      "elapsed_seconds": 26.345,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "lines": 150,
+      "pane_environment_matches": {}
+    },
+    "cleanup": {
+      "status": "passed",
+      "method": "exact marked CLI session removed, same-server sentinel survived, then sentinel and exact stale socket cleaned",
+      "version": "1.4.0",
+      "date": "2026-10-18T02:27:49.936950+00:00",
+      "elapsed_seconds": 1.834,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    }
+  },
+  "publication": "Reviewed summary; raw screens, account information and artifact paths excluded. Raw evidence retained locally."
+}

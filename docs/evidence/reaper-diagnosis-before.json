@@ -1,0 +1,21 @@
+{
+  "sample_count": 80,
+  "transition_groups": [
+    {
+      "count": 20,
+      "states": [
+        "<PID>|0||",
+        "<PID>|1||"
+      ],
+      "traceback": true
+    },
+    {
+      "count": 60,
+      "states": [
+        "<PID>|0||",
+        "<PID>|1|1|"
+      ],
+      "traceback": true
+    }
+  ]
+}

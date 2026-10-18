@@ -26,10 +26,10 @@ class SessionTests(TmuxCase):
     def test_creation_history_remain_and_metadata(self):
         info = self.create('--history-limit', '777')
         self.assertEqual(info['socket'], self.socket)
-        self.assertEqual(info['owner'], 'tmux-tui/v1')
+        self.assertEqual(info['owner'], 'peer-coworkers/v2')
         self.assertEqual(self.tmux('display-message', '-p', '-t', self.pane, '#{history_limit}').stdout.strip(), b'777')
         self.assertEqual(self.tmux('show-options', '-pqv', '-t', self.pane, 'remain-on-exit').stdout.strip(), b'on')
-        for key, value in (('@task', 'task'), ('@cwd', self.temp.name), ('@owner', 'tmux-tui/v1')):
+        for key, value in (('@task', 'task'), ('@cwd', self.temp.name), ('@owner', 'peer-coworkers/v2')):
             self.assertEqual(self.tmux('show-options', '-qv', '-t', 'cli', key).stdout.decode().strip(), value)
         expected = self.tmux('show-options', '-gqv', 'default-terminal').stdout.decode().strip()
         self.assertEqual(self.events()[0]['term'], expected)
@@ -139,9 +139,12 @@ class SessionTests(TmuxCase):
         self.pane = json.loads(result.stdout)['pane']
         self.until(lambda: self.tmux('display-message', '-p', '-t', self.pane, '#{pane_dead}').stdout.strip() == b'1')
         self.assertIn(b'FileNotFoundError', self.tmux('capture-pane', '-p', '-t', self.pane).stdout)
-        # tmux 3.4 can expose pane_dead before reaping publishes pane_dead_status.
-        self.until(lambda: self.tmux('display-message', '-p', '-t', self.pane,
-                                    '#{pane_dead_status}').stdout.strip() == b'1')
+        # Observe through the status helper: it can notify a proven zombie's
+        # exact tmux parent, then assert the native tmux status is really 1.
+        from common import Tmux
+        self.until(lambda: Tmux(self.socket).status(self.pane) == (True, '1'))
+        self.assertEqual(self.tmux('display-message', '-p', '-t', self.pane,
+                                   '#{pane_dead_status}').stdout.strip(), b'1')
         self.assertEqual(self.cleanup_script().returncode, 0)
 
     def socket_path(self, tmp=None):

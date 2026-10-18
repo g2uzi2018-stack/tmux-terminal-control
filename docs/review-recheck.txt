@@ -1,0 +1,13 @@
+test_proxy_command_removals_reach_real_pane_and_parent_is_restored (test_config.ConfigTests.test_proxy_command_removals_reach_real_pane_and_parent_is_restored) ... ok
+test_question_cannot_rearm_single_attempt_cancellation (test_interactions.InteractionTests.test_question_cannot_rearm_single_attempt_cancellation) ... ok
+test_direct_new_session_exit_status_without_respawn (test_status.RealReaperTests.test_direct_new_session_exit_status_without_respawn) ... ok
+test_real_transient_reaper_format (test_status.RealReaperTests.test_real_transient_reaper_format) ... ok
+test_repeated_failed_launch_keeps_actual_exit_status (test_status.RealReaperTests.test_repeated_failed_launch_keeps_actual_exit_status) ... ok
+test_repeated_real_child_exit_status (test_status.RealReaperTests.test_repeated_real_child_exit_status) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 16.455s
+
+OK
+direct launch cases=40 native-pending=17 exact-server-notifications=17 native-exit-1=40
+actual transient reaper samples: []

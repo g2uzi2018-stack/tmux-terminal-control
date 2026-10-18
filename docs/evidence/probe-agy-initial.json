@@ -1,0 +1,98 @@
+{
+  "profile": "agy",
+  "version": "1.4.0",
+  "date": "2026-10-18T02:12:28.159768+00:00",
+  "origin": "interactive behavioral probe",
+  "command": [
+    "agy",
+    "--sandbox"
+  ],
+  "checks": {
+    "readiness": {
+      "status": "unverified",
+      "evidence": "literal input was not visible; no Enter sent",
+      "elapsed_seconds": 4.205,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "paste": {
+      "status": "passed",
+      "method": "literal Unicode and shell metacharacters displayed after separate paste",
+      "elapsed_seconds": 1.95,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "single_line": {
+      "status": "passed",
+      "method": "computed reverse token absent from prompt observed only after one Enter",
+      "elapsed_seconds": 13.695,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "multiline": {
+      "status": "passed",
+      "method": "raw 2004h, both literal input lines, no early response, computed reply after one Enter",
+      "elapsed_seconds": 17.05,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "cancel": {
+      "status": "timeout",
+      "evidence": "",
+      "elapsed_seconds": 25.04,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "approval": {
+      "status": "passed",
+      "method": "profile regex matched actual prompt region while requested file remained absent; no approval sent",
+      "elapsed_seconds": 18.037,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "prompt_lines": 8,
+      "patterns": [
+        "^Allow creation of this file\\?$"
+      ],
+      "pane_environment_matches": {}
+    },
+    "result_file": {
+      "status": "timeout",
+      "evidence": "",
+      "elapsed_seconds": 25.043,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "long_response": {
+      "status": "timeout",
+      "evidence": "",
+      "elapsed_seconds": 25.046,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "cleanup": {
+      "status": "passed",
+      "method": "exact marked CLI session removed, same-server sentinel survived, then sentinel and exact stale socket cleaned",
+      "elapsed_seconds": 1.774,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    }
+  },
+  "publication": "Reviewed summary; raw screens, account information and artifact paths excluded. Raw evidence retained locally."
+}

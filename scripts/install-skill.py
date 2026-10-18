@@ -17,11 +17,15 @@ def install(destination):
     backup = None
     staging = Path(tempfile.mkdtemp(prefix='.peer-coworkers-install-', dir=destination.parent))
     try:
-        # Repository transport links are materialized: the installed skill needs no sibling.
+        # Copy the standalone package without carrying generated Python caches.
         shutil.copytree(source, staging, dirs_exist_ok=True, symlinks=False,
                         ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        required = ['SKILL.md', 'scripts/cowork.py', 'scripts/common.py', 'scripts/session.py',
-                    'scripts/input.py', 'scripts/wait.py', 'scripts/profiles.py']
+        for name in ('LICENSE', 'NOTICE'):
+            shutil.copyfile(Path(__file__).resolve().parents[1] / name, staging / name)
+        required = ['LICENSE', 'NOTICE', 'SKILL.md', 'scripts/cowork.py', 'scripts/common.py', 'scripts/session.py',
+                    'scripts/input.py', 'scripts/wait.py', 'scripts/profiles.py',
+                    *['scripts/' + name + '.py' for name in ('tasks', 'config', 'lease', 'records',
+                      'results', 'snapshot', 'observation', 'interactions', 'capabilities', 'probe')]]
         for name in required:
             if not (staging / name).is_file():
                 raise RuntimeError('missing package file: ' + name)
@@ -36,6 +40,9 @@ def install(destination):
             if backup is not None:
                 backup.rename(destination)
             raise
+        legacy = destination.parent / 'tmux-tui'
+        if legacy.exists():
+            print('Notice: legacy tmux-tui directory preserved: ' + str(legacy))
         return destination, backup
     finally:
         if staging.exists():
@@ -51,7 +58,7 @@ def main():
         print('Installed: ' + str(destination))
         if backup:
             print('Previous installation backed up: ' + str(backup))
-        print('Available on the next turn. Global config and legacy tmux-tui were preserved.')
+        print('Available on the next turn. Global config was preserved.')
         return 0
     except (OSError, RuntimeError) as exc:
         print('error: ' + str(exc), file=sys.stderr)

@@ -1,0 +1,97 @@
+{
+  "profile": "codex",
+  "version": "codex-cli 0.163.0",
+  "date": "2026-10-18T02:17:18.877442+00:00",
+  "origin": "interactive behavioral probe",
+  "command": [
+    "codex",
+    "--no-alt-screen",
+    "--sandbox",
+    "workspace-write"
+  ],
+  "checks": {
+    "readiness": {
+      "status": "passed",
+      "method": "literal nonce received with observed bracketed-paste mode, no Enter",
+      "elapsed_seconds": 0.76,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "paste": {
+      "status": "passed",
+      "method": "literal Unicode and shell metacharacters displayed after separate paste",
+      "elapsed_seconds": 0.746,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "single_line": {
+      "status": "passed",
+      "method": "computed reverse token absent from prompt observed only after one Enter",
+      "elapsed_seconds": 6.979,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "multiline": {
+      "status": "passed",
+      "method": "raw 2004h, both literal input lines, no early response, computed reply after one Enter",
+      "elapsed_seconds": 7.31,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "cancel": {
+      "status": "timeout",
+      "evidence": "",
+      "elapsed_seconds": 90.042,
+      "submissions": 1,
+      "escapes": 1,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "approval": {
+      "status": "timeout",
+      "evidence": "",
+      "elapsed_seconds": 90.044,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "result_file": {
+      "status": "passed",
+      "method": "bounded no-follow JSON read equals unpredictable nonce",
+      "elapsed_seconds": 9.59,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    },
+    "long_response": {
+      "status": "passed",
+      "method": "all 150 computed lines recovered through capture-pane -S -, beyond the 45-row viewport",
+      "elapsed_seconds": 17.569,
+      "submissions": 1,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "lines": 150,
+      "pane_environment_matches": {}
+    },
+    "cleanup": {
+      "status": "passed",
+      "method": "exact marked CLI session removed, same-server sentinel survived, then sentinel and exact stale socket cleaned",
+      "elapsed_seconds": 0.471,
+      "submissions": 0,
+      "escapes": 0,
+      "cleanup_errors": [],
+      "pane_environment_matches": {}
+    }
+  },
+  "publication": "Reviewed summary; raw screens, account information and artifact paths excluded. Raw evidence retained locally."
+}

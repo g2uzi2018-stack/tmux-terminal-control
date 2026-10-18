@@ -1,2 +1,6 @@
 __pycache__/
 *.py[cod]
+
+# Raw CLI screens, account details, machine paths and local investigation history.
+docs/local/*
+!docs/local/README.md

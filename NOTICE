@@ -1,0 +1,5 @@
+The role separation and independent-review workflow were informed by the
+peer_coworkers project (https://github.com/g2uzi2018-stack/peer_coworkers,
+revision 2016c9c2ec7c5f8ea16917c6c46c7c057a70c78f).
+This package implements its own standard-library Python and tmux task lifecycle.
+Historical design references are preserved in docs/local/.

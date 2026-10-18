@@ -1,6 +1,6 @@
 # 协作模式
 
-从用户的 peer_coworkers 提取角色与验收规则，取消 Luna/DeepSeek 身份 allowlist 和固定模型路由。这里的工作进程均通过独立 CLI 会话运行。
+从用户的 peer_coworkers 提取角色与验收规则，取消固定身份 allowlist 和模型路由。这里的工作进程均通过独立 CLI 会话运行。
 
 | 需求 | 模式 | 输入边界与验收 |
 |---|---|---|

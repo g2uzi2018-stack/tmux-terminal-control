@@ -28,18 +28,22 @@ try:
                 del pending[:len(marker)]
                 paste = not paste
                 if not paste:
-                    os.write(1, b'RECEIVED\r\n')
+                    os.write(1, b'RECEIVED ' + bytes(data) + b'\r\n')
+                else:
+                    data.clear()
                 continue
             if marker.startswith(pending):
                 break
             char = pending.pop(0)
             if char in (10, 13) and not paste:
+                record = json.loads((args.run / 'task.json').read_text())
                 submits += 1
                 handoff = dict(STATUS='DONE', RESULT=['deterministic peer completed'],
                                EVIDENCE=['submit_count=' + str(submits)], VALIDATION=['fake peer only'],
                                REMAINING_WORK=[], RISKS=[])
-                result = dict(task_id=record['task_id'], attempt_id=record['attempt_id'], handoff=handoff)
-                Path(record['result_path']).write_text(json.dumps(result))
+                result = dict(task_id=record['task_id'], attempt_id=record['attempt_id'], round=record['round'], handoff=handoff)
+                (args.run / 'temporary-result.json').write_text(json.dumps(result))
+                os.replace(args.run / 'temporary-result.json', record['result_path'])
                 (args.run / 'submits.txt').write_text(str(submits))
                 os.write(1, b'RESULT_READY\r\n')
             else:

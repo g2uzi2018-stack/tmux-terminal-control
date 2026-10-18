@@ -11,7 +11,7 @@ import unittest
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / 'skills' / 'tmux-tui' / 'scripts'
+SCRIPTS = ROOT / 'skills' / 'peer-coworkers' / 'scripts'
 PYTHON = shutil.which('python3')
 
 
@@ -19,7 +19,7 @@ class TmuxCase(unittest.TestCase):
     def setUp(self):
         if not shutil.which('tmux') or not PYTHON:
             self.fail('tmux and python3 are required; missing dependencies are failures')
-        self.temp = tempfile.TemporaryDirectory(prefix='tmux-tui-tests-')
+        self.temp = tempfile.TemporaryDirectory(prefix='peer-terminal-tests-')
         self.addCleanup(self.temp.cleanup)
         self.socket = 'ai-tui-test-' + uuid.uuid4().hex
         self.addCleanup(self.destroy)

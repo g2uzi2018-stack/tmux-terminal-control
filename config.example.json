@@ -1,0 +1,15 @@
+{
+  "proxy": {
+    "mode": "auto"
+  },
+  "profiles": {
+    "codex": {"model": null},
+    "agy": {},
+    "cursor": {}
+  },
+  "snapshot": {
+    "max_files": 50000,
+    "max_bytes": 268435456,
+    "max_record_bytes": 67108864
+  }
+}

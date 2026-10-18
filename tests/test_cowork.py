@@ -13,7 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / 'skills' / 'peer-coworkers' / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
-import cowork
+import tasks as cowork
 import profiles
 
 
@@ -22,7 +22,9 @@ class CoworkTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='peer-coworkers-tests-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        environment = patch.dict(os.environ, {'XDG_STATE_HOME': str(self.root / 'state')})
+        configuration = self.root / 'config.json'
+        configuration.write_text(json.dumps({'proxy': {'mode': 'off'}}))
+        environment = patch.dict(os.environ, {'XDG_STATE_HOME': str(self.root / 'state'), 'PEER_CONFIG': str(configuration)})
         environment.start()
         self.addCleanup(environment.stop)
         self.cwd = self.root / 'project'
@@ -42,7 +44,7 @@ class CoworkTests(unittest.TestCase):
         return cowork.prepare(SimpleNamespace(**args))
 
     def result(self, **changes):
-        value = dict(task_id=self.record['task_id'], attempt_id=self.record['attempt_id'],
+        value = dict(task_id=self.record['task_id'], attempt_id=self.record['attempt_id'], round=self.record['round'],
                      handoff=dict(STATUS='DONE', RESULT=['done'], EVIDENCE=['evidence'],
                                   VALIDATION=[], REMAINING_WORK=[], RISKS=[]))
         value.update(changes)
@@ -116,7 +118,7 @@ class CoworkTests(unittest.TestCase):
                 self.init(profile='agy', model=model)
 
     def test_explicit_proxy_reaches_pane_and_parent_environment_is_restored(self):
-        proxy = 'http://127.0.0.1:17890'
+        proxy = 'http://127.0.0.1:18999'
         before = dict(os.environ)
         with patch.object(profiles, 'command', return_value=[sys.executable, str(ROOT / 'tests/fake_peer.py'),
                                                            '--run', str(self.run)]):
@@ -134,8 +136,8 @@ class CoworkTests(unittest.TestCase):
     def test_proxy_environment_restored_after_launch_failure(self):
         before = dict(os.environ)
         with self.assertRaises(RuntimeError):
-            with cowork.launch_environment(profiles.proxy_environment('http://127.0.0.1:17890')):
-                self.assertEqual(os.environ['HTTPS_PROXY'], 'http://127.0.0.1:17890')
+            with cowork.launch_environment(profiles.proxy_environment('http://127.0.0.1:18999')):
+                self.assertEqual(os.environ['HTTPS_PROXY'], 'http://127.0.0.1:18999')
                 raise RuntimeError('simulated launch failure')
         self.assertEqual(dict(os.environ), before)
 
@@ -377,6 +379,21 @@ class CoworkTests(unittest.TestCase):
 
 
 class InstallTests(unittest.TestCase):
+    def test_legacy_sibling_notice_and_preservation(self):
+        with tempfile.TemporaryDirectory(prefix='peer-install-test-') as temp:
+            dest = Path(temp) / 'peer-coworkers'
+            legacy = dest.parent / 'tmux-tui'
+            legacy.mkdir()
+            marker = legacy / 'user-extra.txt'
+            marker.write_text('preserve legacy installation')
+            process = subprocess.run([sys.executable, str(ROOT / 'scripts/install-skill.py'),
+                                      '--dest', str(dest)], capture_output=True, text=True)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            notices = [line for line in process.stdout.splitlines() if 'tmux-tui' in line]
+            self.assertEqual(notices, ['Notice: legacy tmux-tui directory preserved: ' + str(legacy)])
+            self.assertTrue(legacy.is_dir())
+            self.assertEqual(marker.read_text(), 'preserve legacy installation')
+
     def test_standalone_install_and_recoverable_update(self):
         spec = importlib.util.spec_from_file_location('peer_installer', ROOT / 'scripts/install-skill.py')
         installer = importlib.util.module_from_spec(spec)

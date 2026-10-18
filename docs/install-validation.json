@@ -1,0 +1,35 @@
+{
+  "symlinks": [],
+  "help_exit": 0,
+  "license_present": true,
+  "notice_present": true,
+  "modules": [
+    "capabilities.py",
+    "common.py",
+    "config.py",
+    "cowork.py",
+    "input.py",
+    "interactions.py",
+    "lease.py",
+    "observation.py",
+    "probe.py",
+    "profiles.py",
+    "records.py",
+    "results.py",
+    "session.py",
+    "snapshot.py",
+    "tasks.py",
+    "wait.py"
+  ],
+  "live_install": {
+    "date": "2026-10-18",
+    "command": "python3 scripts/install-skill.py",
+    "destination": "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers",
+    "backup_created": true,
+    "source_files_verified": 22,
+    "source_matches_installed": true,
+    "symlinks": [],
+    "legacy_sibling_preserved": true,
+    "installed_help_exit": 0
+  }
+}
