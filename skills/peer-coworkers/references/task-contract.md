@@ -6,9 +6,10 @@
 
 ```bash
 python3 scripts/cowork.py doctor
-python3 scripts/cowork.py init --cwd /absolute/git/worktree --role implement --profile codex --goal '实现具体目标' --owned-path src/example.py --acceptance '指定针对性测试通过'
+# 先按 model-selection.md 选型，再替换 PROFILE 和 MODEL_ID；不是默认选择 Codex。
+python3 scripts/cowork.py init --cwd /absolute/git/worktree --role implement --profile PROFILE --model MODEL_ID --goal '实现具体目标' --owned-path src/example.py --acceptance '指定针对性测试通过'
 # 使用 init 返回的绝对 run 目录替换 RUN；它不是 shell 环境变量。
-bash -ic 'proxy_on && python3 /home/kuang/.codex/skills/peer-coworkers/scripts/cowork.py start --run RUN'
+bash -ic 'proxy_on && python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" start --run RUN'
 python3 scripts/cowork.py screen --run RUN
 python3 scripts/cowork.py paste --run RUN
 python3 scripts/cowork.py screen --run RUN
@@ -22,9 +23,9 @@ python3 scripts/cowork.py accept --run RUN --evidence '已核对具体 diff；�
 python3 scripts/cowork.py close --run RUN --allow-active
 ```
 
-`init` 默认 Codex，支持 `--profile agy` 和 `--profile cursor`。Cursor 配置启动 `cursor-agent`，缺失时尝试 `agent`，不会启动编辑器命令 `cursor`。OpenCode 需要用户先明确启用，再附 `--profile opencode --enable-opencode`。`--role review/research` 禁止拥有写入路径，`implement/test` 必须提供至少一个 `--owned-path`。归属相对 Git worktree 根，不允许 `..`、绝对路径或 `.git`；`.` 表示整个工作区，慎按任务实际范围使用。首版允许读取整个工作区，不提供文件读取隔离。
+`init` 必须显式传入 `--profile codex|agy|cursor`，不再默认 Codex；旧调用若省略此参数，须先完成选型再补上。已有任务的 start/collect/close 不受影响。Cursor 配置启动 `cursor-agent`，缺失时尝试 `agent`，不会启动编辑器命令 `cursor`。OpenCode 需要用户先明确启用，再附 `--profile opencode --enable-opencode`。`--role review/research` 禁止拥有写入路径，`implement/test` 必须提供至少一个 `--owned-path`。归属相对 Git worktree 根，不允许 `..`、绝对路径或 `.git`；`.` 表示整个工作区，慎按任务实际范围使用。首版允许读取整个工作区，不提供文件读取隔离。
 
-`init --model MODEL_ID` 可显式绑定本任务模型，写入 task.json 和任务说明，启动时作为 `--model MODEL_ID` argv 传递；不提供则沿用 CLI 默认，不修改用户持久模型配置。模型 ID 最多 200 字符，使用 CLI 实际列出的标识符。当前机器的 Gemini 3.8 Flash High 已通过真实任务验收，可显式使用 `--profile agy --model gemini-3.8-flash-high`；不静默替换用户指定的模型。
+`init --model MODEL_ID` 可显式绑定本任务模型，写入 task.json 和任务说明，启动时作为 `--model MODEL_ID` argv 传递；不提供则沿用 CLI 默认，不修改用户持久模型配置。模型 ID 最多 200 字符，使用 CLI 实际列出的标识符；不接受方括号参数化表达式，也没有独立 `--effort` 或通用 Fast 开关。默认不用 Fast，模型 ID 之外的速度设置须核对当前会话。选型依据、实际模型/档位/速度模式和 unknown 项记录在主代理工作记录中，不向严格的 result.json 合同添加新字段。具体能力与确认方法见 [模型能力与选型](model-selection.md)；不静默替换用户指定的模型。
 
 本机真实进程启动前先执行 `proxy_on`；函数只在交互 Bash 中可用。`start --proxy-url http://127.0.0.1:17890` 可为 agy 显式指定本机已确认的代理，代理变量只在新建任务的 server/pane 中保留，不改变 CLI 的账号、模型或审批。完整环境约定见 [CLI 配置](cli-profiles.md)。
 

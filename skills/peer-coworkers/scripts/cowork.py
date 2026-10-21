@@ -424,7 +424,8 @@ def parser():
     init.add_argument('--cwd', required=True)
     init.add_argument('--goal', required=True)
     init.add_argument('--role', choices=('implement', 'test', 'review', 'research'), required=True)
-    init.add_argument('--profile', choices=tuple(profiles.PROFILES), default='codex')
+    init.add_argument('--profile', choices=tuple(profiles.PROFILES), required=True,
+                      help='CLI selected for this work package; no implicit default')
     init.add_argument('--model', help='explicit CLI model ID for this task; omitted preserves CLI defaults')
     init.add_argument('--enable-opencode', action='store_true')
     init.add_argument('--owned-path', action='append', default=[])

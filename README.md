@@ -1,10 +1,14 @@
 # tmux-terminal-control
 
-隔离 tmux 会话的终端操控工具：Agent Skill、Python 标准库辅助脚本、假 TUI 和 unittest。只读设计：[方案](https://app.notion.com/p/3f89f9a4e09e810e968bf0028aade8f8)、[Skill](https://app.notion.com/p/3f99f9a4e09e8105878fc27cc06fe938)。
+隔离 tmux 会话的终端操控工具：Agent Skill、Python 标准库辅助脚本、假 TUI 和 unittest。Notion：[工作流与版本说明](https://app.notion.com/p/3f89f9a4e09e810e968bf0028aade8f8)、[早期终端设计](https://app.notion.com/p/3f99f9a4e09e8105878fc27cc06fe938)。
 
 ## 统一技能首版
 
 已新增 [peer-coworkers](skills/peer-coworkers/SKILL.md)：统一任务分工、CLI 交互、结果校验与主代理验收。Linux/WSL 使用 Python 标准库和 tmux，不新增 pip 依赖。
+
+模型按任务选择，不固定品牌或等级。首次派工比较候选并说明理由，独立复核优先考虑胜任的不同模型家族；能力边界、思考档位与调查证据见 [模型能力与选型](skills/peer-coworkers/references/model-selection.md)。`init` 现要求显式传入 `--profile`，省略时会报参数错误；`--model` 仍是可选的单任务设置，已有任务记录不受影响。
+
+按用户偏好，**默认标准速度，不启用 Fast；只有用户当次明确要求才启用**。模型、思考档位和速度分别确认，Gemini Flash 不属于 Fast 开关。该规则由技能选型与会话核对执行；脚本没有通用的 Fast 开关，不改全局配置。更新范围、验证和已知限制见 [本次选型修复记录](docs/model-selection-validation.md)。
 
 ```bash
 python3 scripts/install-skill.py
@@ -15,7 +19,7 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" do
 
 | CLI | 首版配置 | 本次调用策略 |
 |---|---|---|
-| Codex | 默认；使用已有登录和模型，经独立 tmux 进程工作 | 实际验证任务与结果闭环 |
+| Codex | 可选；`--profile codex`，使用已有登录，经独立 tmux 进程工作 | 有历史任务与结果闭环证据，具体模型按任务选择 |
 | agy | 可选；保留全局模型设置，可按任务显式选模型 | Gemini 3.8 Flash High 与 Claude Sonnet 4.6 均已通过真实任务闭环 |
 | Cursor CLI | 可选；`--profile cursor`，使用 `cursor-agent` 或 `agent` | 已通过真实任务读取、结果交付、主代理验收与清理 |
 | OpenCode | 仅兼容候选，默认关闭 | 用户尚未购买，本次不调用，也不自动回退到它 |
@@ -33,8 +37,8 @@ python3 skills/peer-coworkers/scripts/cowork.py init --cwd /absolute/git/worktre
 
 ```bash
 # RUN 替换为 init 返回的绝对目录。
-bash -ic 'proxy_on && python3 /home/kuang/.codex/skills/peer-coworkers/scripts/cowork.py start --run RUN'
-bash -ic 'proxy_on && python3 /home/kuang/.codex/skills/peer-coworkers/scripts/cowork.py start --run RUN --proxy-url http://127.0.0.1:17890'
+bash -ic 'proxy_on && python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" start --run RUN'
+bash -ic 'proxy_on && python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" start --run RUN --proxy-url http://127.0.0.1:17890'
 ```
 
 `--proxy-url` 在创建 tmux server 时传入 HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 及小写同名变量，并保留本地 NO_PROXY。`proxy_on` 本身控制 WSL 透明代理，不会自动导出这些变量；真实请求能否成功仍须实测。端口是本机配置，其他机器按其实际代理填写。
@@ -47,7 +51,7 @@ bash -ic 'proxy_on && python3 /home/kuang/.codex/skills/peer-coworkers/scripts/c
 
 `scope_check_exclusions` 会在任务说明与收集结果中明确列出未覆盖的忽略文件和工作区外路径，主代理须另行核对有关产物；空 scope_violations 不表示全盘无变化。用户状态目录不同的调用与工具外写者仍需协调。新旧实测结果分别记录，不把历史版本兼容性扩展到当前版本。
 
-当前环境 **112 项自动化测试通过、0 跳过**；真实 Codex 已完成独立审查、定向复核和临时实现任务，agy / Gemini、agy / Claude 和 Cursor CLI 均已通过读取任务至主代理验收的完整闭环。主代理另做 12 个用例验证 Codex 临时实现并清理演练文件。证据见 [统一技能验收](docs/peer-coworkers-acceptance.md) 与 [完整测试输出](docs/peer-coworkers-test-results.txt)。
+2026-10-21 在 WSL Debian13 / dev 验证 **114 项自动化测试通过、0 跳过**；本次核对了模型目录与官方资料，未重跑在线工作包或模型性能横测。结果与安装检查见 [选型修复验证](docs/model-selection-validation.md)。2026-10-17 另一环境的首版记录为 112 项通过；当时 Codex、agy / Gemini、agy / Claude 和 Cursor Auto 已完成真实任务闭环。历史证据见 [首版验收](docs/peer-coworkers-acceptance.md) 与 [首版测试输出](docs/peer-coworkers-test-results.txt)，不等于当前版本或具体模型已全面验收。
 
 ## 与 Peer Coworkers 的整合设计
 
@@ -90,7 +94,9 @@ skills/peer-coworkers/
 │   ├── collaboration-modes.md        # 迁入并改写六种模式
 │   ├── task-contract.md              # 任务、状态与结果合同
 │   ├── terminal-control.md           # 迁入现有 tmux 操作规则
-│   └── cli-profiles.md               # 按 CLI/版本记录实测能力与限制
+│   ├── cli-profiles.md               # 按 CLI/版本记录实测能力与限制
+│   ├── model-selection.md            # 能力、思考/速度选择与证据边界
+│   └── model-inventory.json          # 带日期和证据来源的模型目录快照
 └── scripts/
     ├── common.py                     # 复用现有底层实现，安装时物化
     ├── session.py
