@@ -97,8 +97,8 @@ class TmuxCase(unittest.TestCase):
         return self.script('input.py', mode, '--socket', self.socket, '--pane', self.pane,
                            *args, input=input)
 
-    def wait_script(self, mode='submit-and-wait', *args, timeout_ms=350, **kwargs):
+    def wait_script(self, mode='submit-and-wait', *args, timeout_ms=350, still_ms=100, **kwargs):
         confirmed = ['--received-confirmed'] if mode == 'submit-and-wait' else []
         return self.script('wait.py', mode, '--socket', self.socket, '--pane', self.pane,
-                           '--timeout-ms', str(timeout_ms), '--shell-timeout-ms', '2000',
-                           '--poll-ms', '15', '--still-ms', '100', *confirmed, *args, **kwargs)
+                           '--timeout-ms', str(timeout_ms), '--shell-timeout-ms', str(max(2000, timeout_ms + 500)),
+                           '--poll-ms', '15', '--still-ms', str(still_ms), *confirmed, *args, **kwargs)

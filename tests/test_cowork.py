@@ -69,6 +69,30 @@ class CoworkTests(unittest.TestCase):
                 profiles.command('opencode')
             which.assert_not_called()
 
+    def test_cli_requires_profile_before_creating_task(self):
+        runs = self.root / 'missing-profile-runs'
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / 'cowork.py'), 'init',
+             '--cwd', str(self.cwd), '--goal', 'explicit selection', '--role', 'research',
+             '--acceptance', 'observable result', '--runs-dir', str(runs)],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('--profile', result.stderr)
+        self.assertFalse(runs.exists())
+
+    def test_cli_preserves_each_explicit_profile_and_model(self):
+        for profile, model in (('agy', 'gemini-3.8-flash-high'),
+                               ('cursor', 'grok-4.7-high'), ('codex', 'gpt-6.1-sol')):
+            with self.subTest(profile=profile):
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPTS / 'cowork.py'), 'init',
+                     '--cwd', str(self.cwd), '--goal', 'explicit selection', '--role', 'research',
+                     '--profile', profile, '--model', model, '--acceptance', 'observable result',
+                     '--runs-dir', str(self.runs)], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                record = cowork.read_json(Path(json.loads(result.stdout)['run']) / 'task.json')
+                self.assertEqual((record['profile'], record['model']), (profile, model))
+
     def test_doctor_does_not_execute_opencode(self):
         with patch.object(profiles.shutil, 'which', side_effect=lambda name: '/fake/' + name), \
                 patch.object(profiles.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='v1')) as run:

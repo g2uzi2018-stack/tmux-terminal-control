@@ -28,8 +28,30 @@ closed before submission and recreated with the corrected contract.
 This proves bounded control-file delivery in these runs, not general model
 quality, all CLI menus, cancellation, or a fresh full capability probe. Existing
 probe reports remain unchanged and version mismatch warnings remain effective.
-Only a temporary installation was checked; the existing user skill installations
-were not replaced. [Reviewed smoke evidence](evidence/reliability-smoke-20261024.json).
+The initial implementation checked a temporary installation.
+[Reviewed smoke evidence](evidence/reliability-smoke-20261024.json).
+
+The publication merge preserves the remote model-selection change, mandatory
+`init --profile`, standard-speed preference and both historical model reference
+files. The merged regression suite passed **188 tests in 120.619 seconds, zero
+skips**. An initial run exposed three test windows too short to finish terminal
+setup under scheduler load and a process-environment probe race. The wait fixtures
+now leave setup time while retaining a later quiet threshold and still prove
+single submission, baseline preservation and delayed-response observation;
+production wait deadlines are unchanged.
+
+The probe now waits for target UI evidence or exit before checking the actual
+pane environment. A regression wrapper deliberately removes `HTTPS_PROXY` after
+initialization: it incorrectly passed the previous probe and is correctly
+rejected by the repaired probe with zero task submissions. Original unsuccessful
+test output and local installation checks remain in ignored local records.
+
+Both existing WSL and Windows-host skill directories were then reinstalled with
+recoverable backups. All 26 source package files matched each installation;
+the two model-reference files were preserved byte for byte. Installed decision
+entrypoints and skill validation passed, and existing Codex/peer configuration
+files were unchanged. Installing the Windows-host copy provides skill discovery;
+execution still runs through WSL.
 
 ## Historical validation — 2026-10-18
 

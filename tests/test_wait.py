@@ -131,7 +131,9 @@ class WaitTests(TmuxCase):
 
     def test_resume_preserves_baseline_and_observed_change(self):
         self.prepare('--mode', 'still')
-        first = self.wait_script(timeout_ms=70)
+        # Allow terminal setup to finish under scheduler load, while keeping
+        # the quiet threshold beyond this first observation window.
+        first = self.wait_script(timeout_ms=400, still_ms=1000)
         self.assert_result(first, 'timeout', 1)
         baseline = self.tmux('show-options', '-pqv', '-t', self.pane, '@aitui_baseline').stdout
         self.assertEqual(self.tmux('show-options', '-pqv', '-t', self.pane, '@aitui_changed').stdout.strip(), b'1')
@@ -142,9 +144,10 @@ class WaitTests(TmuxCase):
         self.assertNotEqual(base64.b64decode(baseline), result.stdout.split(b'\n', 1)[1])
 
     def test_resume_detects_change_that_arrives_after_first_timeout(self):
-        self.prepare('--mode', 'approval', '--response-delay-ms', '200')
-        self.assert_result(self.wait_script(timeout_ms=70), 'timeout', 0)
-        result = self.wait_script('resume', '--prompt', 'approval=^APPROVAL: .+$')
+        self.prepare('--mode', 'approval', '--response-delay-ms', '1000')
+        self.assert_result(self.wait_script(timeout_ms=400), 'timeout', 0)
+        self.until(lambda: len(self.submits()) == 1)
+        result = self.wait_script('resume', '--prompt', 'approval=^APPROVAL: .+$', timeout_ms=2000)
         self.assert_result(result, 'prompt', 1)
         self.assertEqual(len(self.submits()), 1)
 
@@ -222,7 +225,8 @@ class WaitTests(TmuxCase):
 
     def test_resumed_old_prompt_still_excluded(self):
         self.prepare('--mode', 'stale', '--initial-prompt', 'APPROVAL: old request')
-        self.assert_result(self.wait_script('submit-and-wait', '--prompt', 'approval=^APPROVAL: .+$', timeout_ms=70), 'timeout', 1)
+        self.assert_result(self.wait_script('submit-and-wait', '--prompt', 'approval=^APPROVAL: .+$',
+                                            timeout_ms=400, still_ms=1000), 'timeout', 1)
         self.assert_result(self.wait_script('resume', '--prompt', 'approval=^APPROVAL: .+$'), 'still', 1)
         self.assertEqual(len(self.submits()), 1)
 

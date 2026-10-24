@@ -62,6 +62,15 @@ class Driver:
         self.pane = result['pane']
         self.tmux = Tmux(self.socket, self.deadline)
         self.tmux.run('pipe-pane', '-O', '-t', self.pane, 'cat > ' + shlex.quote(str(self.raw_path)))
+        # respawn-pane can return before the exec launcher becomes the CLI.
+        # Inspecting /proc immediately can read a transitional shell's
+        # environment, or miss changes made by the actual target wrapper.
+        # Wait for target UI evidence (or exit) under the same check deadline.
+        while True:
+            screen = self.capture()
+            if self.bracketed() or GATE.search(screen) or self.tmux.status(self.pane)[0]:
+                break
+            self.pause()
         pid = self.tmux.run('display-message', '-p', '-t', self.pane, '#{pane_pid}').strip()
         values = dict(item.split(b'=', 1) for item in Path('/proc', pid, 'environ').read_bytes().split(b'\0') if b'=' in item)
         self.environ_matches = {key: values.get(key.encode()) == (value.encode() if value is not None else None)

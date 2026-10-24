@@ -95,3 +95,16 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(item['status'], 'timeout')
         self.assertEqual(item['escapes'], 0)
         self.assertFalse(item['cleanup_errors'])
+
+    def test_probe_checks_environment_after_target_initialization(self):
+        wrapper = self.root / 'fixture-cli'
+        wrapper.write_text('#!/bin/sh\nif [ "$1" != "--version" ]; then sleep 0.3; unset HTTPS_PROXY; fi\nexec '
+                           + sys.executable + ' ' + str(fixtures.ROOT / 'tests/fake_probe.py') + ' "$@"\n')
+        wrapper.chmod(0o700)
+        Path(os.environ['PEER_CONFIG']).write_text(json.dumps(dict(runs_dir=str(self.runs),
+            proxy=dict(mode='url', url='http://localhost:18999'), profiles=dict(codex=dict(path=str(wrapper))))))
+        with patch.object(probe, 'CHECKS', ('readiness',)):
+            item = probe.run('codex', cwd=self.cwd, timeout_ms=2500, budget_seconds=4)['checks']['readiness']
+        self.assertEqual(item['status'], 'failed', item)
+        self.assertFalse(item['pane_environment_matches']['HTTPS_PROXY'])
+        self.assertEqual(item['submissions'], 0)

@@ -2,6 +2,8 @@
 
 Use `python3 scripts/cowork.py doctor` to see executable availability, versions, latest probe capabilities and upgrade warnings. Availability is separate from authentication and behavioral compatibility. Use the existing login and CLI default model, or an explicit task/profile model; never silently substitute one.
 
+Separate channel compatibility from model selection. Before first assignment, read [model selection](model-selection.md), compare suitable candidates and explicitly choose `--profile`. The inventory and dated historical machine records are discovery evidence, not current task-quality guarantees; resolve this machine's versions, paths and proxy configuration rather than copying old values.
+
 | Profile | Launch arguments | Discovery |
 | --- | --- | --- |
 | codex | `--no-alt-screen --sandbox workspace-write` | `codex` |

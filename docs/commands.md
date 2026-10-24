@@ -5,7 +5,7 @@ All commands use `python3 skills/peer-coworkers/scripts/cowork.py`. Commands ret
 | Command | Parameters and behavior |
 | --- | --- |
 | `doctor` | Find executables and versions; compare each enabled profile to its latest probe. Does not execute the disabled profile. `--probe --profile P [--no-proxy]` additionally runs the live behavioral probe, including actual sandbox writing and actual pane proxy-environment comparison. |
-| `init` | `--cwd ABS --goal TEXT --role implement/test/review/research --acceptance TEXT` (repeatable); write roles need repeatable `--owned-path`. Select `--profile` explicitly. Options: `--model`, `--runs-dir`, `--budget-seconds` (600 from first submit), `--startup-budget-seconds` (300), `--approval-budget-seconds` (300 maximum observed waiting grace; 0 disables), `--max-replies` (2), `--enable-opencode`. Creates a private prompt, task record and baseline. |
+| `init` | `--cwd ABS --goal TEXT --role implement/test/review/research --profile PROFILE --acceptance TEXT` (repeatable); write roles need repeatable `--owned-path`. `--profile` is required. Options: `--model`, `--runs-dir`, `--budget-seconds` (600 from first submit), `--startup-budget-seconds` (300), `--approval-budget-seconds` (300 maximum observed waiting grace; 0 disables), `--max-replies` (2), `--enable-opencode`. Creates a private prompt, task record and baseline. |
 | `start` | `--run RUN [--no-proxy | --proxy-url URL]`. Single launch attempt; persistent workspace lease checks prevent incompatible concurrent use. Confirmed dead sessions are reclaimed and reported. Unknown leases remain blocking. |
 | `show` | `--run RUN`. Task metadata without large snapshots. |
 | `screen` | `--run RUN`. Verify exact owner/task/cwd/pane and capture current screen. |

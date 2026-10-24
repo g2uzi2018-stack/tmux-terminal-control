@@ -13,6 +13,10 @@ The installer copies ordinary files, backs up an existing installation, and pres
 
 Codex, agy and Cursor Agent CLI have sandbox-preserving launch profiles. OpenCode requires explicit opt-in and is never a fallback. Executable availability does not establish authentication or compatibility.
 
+Choose the CLI/model deliberately for each work package and pass `init --profile PROFILE` explicitly. Compare reasonable candidates rather than defaulting every role to one provider. Prefer a suitable different model family for independent review; actual artifacts and validation determine acceptance. See [model selection](skills/peer-coworkers/references/model-selection.md) and the dated [selection validation](docs/model-selection-validation.md).
+
+The user's default is standard speed: enable Fast only when explicitly requested for that task. Model, reasoning effort and speed are separate choices; Gemini Flash is a model family, not the Fast setting. Check the actual session configuration and report unknown values instead of assuming. Task commands do not change persistent global CLI defaults.
+
 Start with the [quick start](docs/quick-start.md). See the [command reference](docs/commands.md), [state machine](docs/state-machine.md), [scope and risk boundaries](docs/boundaries.md), [configuration example](config.example.json), and [contribution guide](CONTRIBUTING.md).
 
 Run deterministic tests, including real tmux sessions:
