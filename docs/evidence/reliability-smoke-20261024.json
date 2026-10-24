@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-24",
+  "timezone": "Asia/Taipei",
+  "purpose": "Narrow real CLI control-file delivery smoke; not a model quality or latency benchmark",
+  "scope": "Independent temporary Git worktrees; no user project material",
+  "attempts": [
+    {
+      "profile": "agy",
+      "cli_version": "1.4.7",
+      "requested_model": "gemini-3.8-flash-high",
+      "model_evidence": "Runtime UI identified Gemini 3.8 Flash (High)",
+      "speed": "Standard model ID requested; no Fast label observed; separate override state not independently inspected in this smoke",
+      "launch_flags": [
+        "--sandbox"
+      ],
+      "initial_task_submissions": 1,
+      "ready_identity_valid": true,
+      "result_identity_valid": true,
+      "ready_precedes_result": true,
+      "result_tokens": [
+        "391",
+        "CHANNEL_SMOKE_OK"
+      ],
+      "one_time_command_decisions": 2,
+      "decision_statuses": [
+        "submitted",
+        "submitted"
+      ],
+      "full_command_review_recorded": true,
+      "changed_paths": [],
+      "scope_violations": [],
+      "git_state_changed": false,
+      "accepted": true,
+      "closed": true,
+      "limits": [
+        "Does not certify every CLI menu, cancellation, multiline behavior or complex task execution"
+      ]
+    },
+    {
+      "profile": "cursor",
+      "cli_version": "2026.10.16-e3cb207",
+      "requested_model": "grok-4.7-high",
+      "model_evidence": "Runtime UI identified Grok 4.7 256K High",
+      "speed": "Standard model ID requested; no Fast label observed; separate override state not independently inspected in this smoke",
+      "launch_flags": [
+        "--sandbox",
+        "enabled"
+      ],
+      "initial_task_submissions": 1,
+      "ready_identity_valid": true,
+      "result_identity_valid": true,
+      "ready_precedes_result": true,
+      "result_tokens": [
+        "391",
+        "CHANNEL_SMOKE_OK"
+      ],
+      "one_time_command_decisions": 0,
+      "decision_statuses": [],
+      "full_command_review_recorded": null,
+      "changed_paths": [],
+      "scope_violations": [],
+      "git_state_changed": false,
+      "accepted": true,
+      "closed": true,
+      "limits": [
+        "Does not certify every CLI menu, cancellation, multiline behavior or complex task execution"
+      ]
+    }
+  ],
+  "prior_attempts": [
+    {
+      "profile": "agy",
+      "outcome": "cancelled without result",
+      "cause": "Smoke instructions banned shell while requiring atomic rename; the available direct file tools lacked rename. The task contract now allows narrowly scoped control-file publication commands under normal approval."
+    },
+    {
+      "profile": "cursor",
+      "outcome": "closed after startup, before task submission",
+      "cause": "Recreated with corrected shared smoke contract; runtime model and workspace-trust flow were observed."
+    }
+  ]
+}

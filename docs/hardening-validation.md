@@ -1,5 +1,38 @@
 # Hardening validation — 2026-10-18
 
+## Delivery reliability follow-up — 2026-10-24
+
+The current suite passed **185 tests in 58.052 seconds, zero skips** using
+`python3 -m unittest discover -s tests -v`. New real-tmux fixtures exercise
+advisory agy command-menu recognition despite a busy footer, whole-screen-bound
+single decisions, navigation away from persistent-allow choices, rejection of
+changed/hidden commands, expanded-command review and return, durable uncertain
+delivery across repaints, startup/work/approval timing, and current-round ready
+receipts. These fixtures are not real model compatibility evidence.
+
+Separate opt-in real CLI smoke tasks used **agy 1.4.7 / Gemini 3.8 Flash High**
+and **Cursor 2026.10.16-e3cb207 / Grok 4.7 High**, retaining sandbox flags and
+using independent temporary Git worktrees. Both published identity-valid ready
+and result JSON containing `391` and `CHANNEL_SMOKE_OK`, passed collection and
+independent arithmetic/scope checks, and were accepted and closed. Gemini's two
+publication commands were read in the expanded editor and individually allowed
+through the new decision command; no persistent permission option was selected.
+Cursor published without a command approval prompt in this run.
+
+The initial Gemini smoke was cancelled because its harness combined a shell ban
+with mandatory atomic renaming unsupported by direct file tools. That conflict
+is preserved in the evidence; the corrected contract permits narrow control-file
+publication commands under ordinary approval. The first Cursor session was
+closed before submission and recreated with the corrected contract.
+
+This proves bounded control-file delivery in these runs, not general model
+quality, all CLI menus, cancellation, or a fresh full capability probe. Existing
+probe reports remain unchanged and version mismatch warnings remain effective.
+Only a temporary installation was checked; the existing user skill installations
+were not replaced. [Reviewed smoke evidence](evidence/reliability-smoke-20261024.json).
+
+## Historical validation — 2026-10-18
+
 The latest precommit suite passed **170 tests in 53.577 seconds, zero skips**, independently run by the primary agent with `python3 -m unittest discover -s tests`. [Full output](test-results.txt). This includes all 113 tests present at the WP0 handoff, migrated to the single skill, plus the hardening regressions. The implementation handoff had passed 166 cases before independent review and the repairs below. Implementation and review used separate peer CLI processes; worker CLI permissions were preserved.
 
 ## Installation, updated CLI and publication

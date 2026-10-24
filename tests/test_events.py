@@ -102,3 +102,26 @@ class EventTests(TmuxCase):
         atomic_json(Path(self.record['result_path']), self.result())
         self.assertEqual(wait_event(self.run, self.record, timeout_ms=400, stable_ms=60,
                                    session_missing=True)['reason'], 'result_ready')
+
+    def test_ready_requires_current_identity_and_is_reported_once_per_round(self):
+        self.prepare('busy')
+        self.record['readiness_required'] = True
+        path = self.run / 'ready.json'
+        ready = dict(task_id='test', attempt_id='attempt', round=1, STATUS='READY')
+        atomic_json(path, ready)
+        value = self.wait()
+        self.assertFalse(value['worker_ready'])
+        self.assertIn('readiness_diagnostic', value)
+        ready['round'] = 0
+        atomic_json(path, ready)
+        self.assertEqual(self.wait()['reason'], 'worker_ready')
+        self.assertEqual(self.wait()['reason'], 'timeout')
+        self.record['round'] = 1
+        self.assertFalse(self.wait()['worker_ready'])
+
+    def test_exhausted_work_returns_specific_event_but_late_result_is_collectible(self):
+        self.prepare('busy')
+        self.record.update(started_at=time.time() - 5, budget_seconds=1)
+        self.assertEqual(self.wait()['reason'], 'budget_exhausted')
+        atomic_json(Path(self.record['result_path']), self.result())
+        self.assertEqual(self.wait()['reason'], 'result_ready')

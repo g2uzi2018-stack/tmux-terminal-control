@@ -5,8 +5,10 @@ import time
 
 from common import DeadlineReached, Tmux, ToolError
 from records import read_json, save
-from results import validate_question, validate_result
+from results import validate_question, validate_result, validate_ready
 from wait import bounded_search, compile_pattern, prompt_region
+from approvals import observe_approval
+from timing import budget_status, finish_approval
 import profiles
 
 
@@ -35,6 +37,7 @@ def wait_event(run, record, timeout_ms=25000, still_ms=600, poll_ms=50, stable_m
     tmux = Tmux(record['socket'], deadline)
     screen, previous, quiet, pending, pending_since = '', None, None, None, None
     invalid = None
+    ready_diagnostic = None
     result = dict(reason='timeout')
     try:
         if verify_session:
@@ -56,6 +59,25 @@ def wait_event(run, record, timeout_ms=25000, still_ms=600, poll_ms=50, stable_m
             except (OSError, ValueError, KeyError, TypeError, ToolError) as exc:
                 pending, pending_since = None, None
                 invalid = str(exc)
+            ready = None
+            if record.get('readiness_required') and record.get('worker_ready_round') != record['round']:
+                try:
+                    ready = validate_ready(read_json(run / 'ready.json', 4096), record)
+                    record.update(worker_ready_round=record['round'], worker_ready_at=time.time())
+                except (OSError, ValueError, KeyError, TypeError, ToolError) as exc:
+                    ready_diagnostic = str(exc)
+            if not session_missing:
+                dead, code = tmux.status(record['pane'])
+                screen = tmux.capture(record['pane'])
+                region = prompt_region(screen, options['prompt_lines'])
+                configured = any(bounded_search(pattern, line, deadline) for pattern in patterns for line in region)
+                approval = observe_approval(record, screen, configured=configured)
+                if approval and pending is None:
+                    result = dict(reason='approval' if approval['status'] == 'waiting' else 'attention',
+                                  approval=approval)
+                    if approval['status'] != 'waiting':
+                        result['diagnostic'] = 'approval decision already attempted; inspect, do not resend'
+                    break
             try:
                 if pending is not None:
                     raise ToolError('valid result is stabilizing; prefer it over a leftover question')
@@ -66,18 +88,16 @@ def wait_event(run, record, timeout_ms=25000, still_ms=600, poll_ms=50, stable_m
                 break
             except (OSError, ValueError, KeyError, TypeError, ToolError):
                 pass
+            if pending is None and ready is not None:
+                result = dict(reason='worker_ready', ready=ready)
+                break
             if session_missing:
+                finish_approval(record, 'session_gone')
                 if pending is None:
                     result = dict(reason='exited', exit_code=None, session_gone=True)
                     break
                 time.sleep(max(0, min(poll_ms / 1000, deadline-time.monotonic())))
                 continue
-            dead, code = tmux.status(record['pane'])
-            screen = tmux.capture(record['pane'])
-            region = prompt_region(screen, options['prompt_lines'])
-            if any(bounded_search(pattern, line, deadline) for pattern in patterns for line in region):
-                result = dict(reason='approval')
-                break
             if dead:
                 if not code and getattr(tmux, 'last_exit_signal', '') in ('', '0'):
                     time.sleep(max(0, min(.005, deadline-time.monotonic())))
@@ -88,6 +108,9 @@ def wait_event(run, record, timeout_ms=25000, still_ms=600, poll_ms=50, stable_m
                     result = dict(reason='exited', exit_code=code or None)
                     break
             is_busy = bool(busy and bounded_search(busy, screen, deadline))
+            if pending is None and budget_status(record)['exhausted']:
+                result = dict(reason='budget_exhausted')
+                break
             if screen != previous or is_busy:
                 previous, quiet = screen, now if not is_busy else None
             elif quiet is None:
@@ -98,7 +121,12 @@ def wait_event(run, record, timeout_ms=25000, still_ms=600, poll_ms=50, stable_m
             time.sleep(max(0, min(poll_ms / 1000, deadline - time.monotonic())))
     except DeadlineReached:
         pass
-    result.update(screen=screen, elapsed_ms=int((time.monotonic() - started) * 1000))
+    result.update(screen=screen, elapsed_ms=int((time.monotonic() - started) * 1000), budget=budget_status(record))
+    if record.get('readiness_required'):
+        result['worker_ready'] = record.get('worker_ready_round') == record['round']
+        if ready_diagnostic and not result['worker_ready'] and result['reason'] != 'result_ready':
+            result['readiness_diagnostic'] = ready_diagnostic
+            result['next_action'] = 'inspect control-file access before spending time on substantive work'
     if invalid and result['reason'] != 'result_ready':
         result['result_diagnostic'] = invalid
     record['last_wait'] = {key: value for key, value in result.items() if key not in ('screen', 'result')}

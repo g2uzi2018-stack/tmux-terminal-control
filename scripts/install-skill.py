@@ -25,7 +25,7 @@ def install(destination):
         required = ['LICENSE', 'NOTICE', 'SKILL.md', 'scripts/cowork.py', 'scripts/common.py', 'scripts/session.py',
                     'scripts/input.py', 'scripts/wait.py', 'scripts/profiles.py',
                     *['scripts/' + name + '.py' for name in ('tasks', 'config', 'lease', 'records',
-                      'results', 'snapshot', 'observation', 'interactions', 'capabilities', 'probe')]]
+                      'results', 'snapshot', 'observation', 'interactions', 'capabilities', 'probe', 'approvals', 'timing')]]
         for name in required:
             if not (staging / name).is_file():
                 raise RuntimeError('missing package file: ' + name)

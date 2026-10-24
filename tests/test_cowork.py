@@ -262,7 +262,7 @@ class CoworkTests(unittest.TestCase):
 
     def test_budget_and_unconfirmed_submit_have_no_side_effects(self):
         self.record['state'] = 'pasted'
-        self.record['started_at'] = time.time() - 100
+        self.record['started_at'] = time.time() - 301
         with patch.object(cowork, 'run_script') as invoke:
             with self.assertRaises(cowork.ToolError):
                 cowork.observe(self.run, self.record, submit=True)

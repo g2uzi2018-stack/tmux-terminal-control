@@ -117,6 +117,8 @@ def reply(run, record, message_file):
         raise ToolError('max_replies reached; create a new task')
     within_budget(record)
     check_session(record)
+    if record.get('pending_approval', {}).get('status') in ('waiting', 'uncertain'):
+        raise ToolError('resolve the pending approval before replying; never paste a task into an approval menu')
     text = read_message(message_file)
     old_round = record['round']
     result_path, question_path = Path(record['result_path']), run / 'question.json'
@@ -139,6 +141,7 @@ def reply(run, record, message_file):
     instructions = ('Continue the original bounded task for round ' + str(record['round']) + '. Do not delegate or change permissions. '
                     'Write the current-round result atomically to ' + str(result_path) + '. Old rounds are invalid. '
                     'You may atomically write a current-round question.json as documented in prompt.txt.\n'
+                    'First publish ready.json with the current task_id, attempt_id, round and STATUS="READY".\n'
                     'Result envelope: ' + json.dumps(example) + '\n\n' + text + '\n')
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as stream:
@@ -158,7 +161,7 @@ def reply(run, record, message_file):
         tmux.set_pane_option(record['pane'], name, value)
     send_submit(tmux, record['pane'], 'Enter', True)
     record['state'] = 'running'
-    for key in ('result', 'scope', 'collected_snapshot', 'last_wait'):
+    for key in ('result', 'scope', 'collected_snapshot', 'last_wait', 'worker_ready_round'):
         record.pop(key, None)
     entry['status'] = 'submitted'
     save(run, record)

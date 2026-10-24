@@ -41,11 +41,19 @@ def parser():
     init.add_argument('--owned-path', action='append', default=[])
     init.add_argument('--acceptance', action='append', required=True)
     init.add_argument('--budget-seconds', type=int, default=600)
+    init.add_argument('--startup-budget-seconds', type=int, default=300)
+    init.add_argument('--approval-budget-seconds', type=int, default=300,
+                      help='maximum observed approval waiting excluded from execution time; 0 disables grace')
     init.add_argument('--runs-dir')
     init.add_argument('--max-replies', type=int, default=2)
-    for name in ('start', 'show', 'screen', 'paste', 'submit', 'observe', 'wait', 'keys', 'cancel', 'reply', 'collect', 'accept', 'close'):
+    for name in ('start', 'show', 'screen', 'paste', 'submit', 'observe', 'wait', 'decision', 'keys', 'cancel', 'reply', 'collect', 'accept', 'close'):
         cmd = commands.add_parser(name)
         cmd.add_argument('--run', type=Path, required=True)
+        if name == 'decision':
+            cmd.add_argument('--approval-id', required=True)
+            cmd.add_argument('--screen-sha256', required=True)
+            cmd.add_argument('--decision', choices=('allow-once', 'deny'), required=True)
+            cmd.add_argument('--evidence', required=True)
         if name == 'keys':
             from common import KEYS
             cmd.add_argument('--key', choices=sorted(KEYS), action='append', required=True)
@@ -110,6 +118,8 @@ def main():
                 if args.action == 'show':
                     result = {key: value for key, value in record.items()
                               if key not in ('baseline', 'collected_snapshot')}
+                    from timing import budget_status
+                    result['budget'] = budget_status(record)
                 elif args.action == 'history':
                     tasks.check_session(record)
                     result = dict(screen=Tmux(record['socket']).run('capture-pane', '-p', '-S', '-', '-t', record['pane']))
@@ -129,6 +139,9 @@ def main():
                                      getattr(args, 'received_confirmed', False), args.timeout_ms)
                 elif args.action == 'keys':
                     result = interactions.keys(run, record, args.key)
+                elif args.action == 'decision':
+                    from approvals import decide
+                    result = decide(run, record, args.approval_id, args.screen_sha256, args.decision, args.evidence)
                 elif args.action == 'cancel':
                     result = interactions.cancel(run, record, args.timeout_ms)
                 elif args.action == 'reply':

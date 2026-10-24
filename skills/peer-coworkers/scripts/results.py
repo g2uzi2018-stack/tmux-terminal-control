@@ -6,6 +6,16 @@ from common import ToolError
 FIELDS = {'STATUS', 'RESULT', 'EVIDENCE', 'VALIDATION', 'REMAINING_WORK', 'RISKS'}
 
 
+def validate_ready(value, record):
+    if not isinstance(value, dict) or set(value) != {'task_id', 'attempt_id', 'round', 'STATUS'}:
+        raise ToolError('ready requires exactly task_id, attempt_id, round, STATUS')
+    if (any(value[key] != record[key] for key in ('task_id', 'attempt_id'))
+            or type(value['round']) is not int or value['round'] != record['round']
+            or value['STATUS'] != 'READY'):
+        raise ToolError('ready must be READY for this task, attempt and round')
+    return value
+
+
 def validate_result(value, record):
     if not isinstance(value, dict) or set(value) != {'task_id', 'attempt_id', 'round', 'handoff'}:
         raise ToolError('result requires exactly task_id, attempt_id, round, handoff')

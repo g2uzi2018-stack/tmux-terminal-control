@@ -19,6 +19,7 @@ from snapshot import git, normalized_scope, scope_report, snapshot
 import profiles
 from observation import terminal_flags
 import session
+from timing import budget_status
 
 SCRIPTS = Path(__file__).resolve().parent
 TERMINAL = {'accepted', 'partial', 'blocked', 'failed', 'cancelled'}
@@ -38,6 +39,10 @@ def prepare(args):
         raise ToolError('max_replies must be a nonnegative integer')
     if args.budget_seconds <= 0:
         raise ToolError('budget must be positive')
+    for name, default in (('startup_budget_seconds', 300), ('approval_budget_seconds', 300)):
+        value = getattr(args, name, default)
+        if type(value) is not int or value < (1 if name == 'startup_budget_seconds' else 0):
+            raise ToolError(name + ' must be a valid nonnegative budget (startup must be positive)')
     owned = [normalized_scope(cwd, path) for path in args.owned_path]
     if args.role in ('review', 'research') and owned:
         raise ToolError('read-only roles cannot own write paths')
@@ -60,6 +65,9 @@ def prepare(args):
                   cwd=str(cwd), role=args.role, profile=args.profile, model=model, owned_paths=owned,
                   acceptance=args.acceptance, baseline=baseline, state='prepared',
                   budget_seconds=args.budget_seconds, created_at=time.time(),
+                  budget_origin='submission', startup_budget_seconds=getattr(args, 'startup_budget_seconds', 300),
+                  approval_budget_seconds=getattr(args, 'approval_budget_seconds', 300),
+                  readiness_required=True,
                   scope_check_exclusions=['Git-ignored untracked files', 'paths outside the worktree'],
                   opencode_enabled=args.enable_opencode, closed=False,
                   result_path=str(run / 'result.json'))
@@ -67,8 +75,19 @@ def prepare(args):
                    handoff=dict(STATUS='DONE', RESULT=[], EVIDENCE=[], VALIDATION=[], REMAINING_WORK=[], RISKS=[]))
     prompt = ('Complete this bounded work package. Do not delegate, commit, stage, change branches, '
               'or modify CLI permissions. Treat allowed paths as a work contract, not sandbox enforcement. '
-              'Write only your owned paths and the run-directory result/question JSON (including temporary files for atomic publication); '
+              'Write only your owned paths and the run-directory result/question/ready JSON (including temporary files for atomic publication); '
               'review/research roles may write only those control artifacts. '
+              'Before reading project materials or doing substantive work, verify the control directory is writable: '
+              'atomically publish ready.json alongside prompt.txt with exactly task_id, attempt_id, round, STATUS="READY" '
+              '(use the actual task identity below). This is a control artifact permitted for every role. '
+              'Prefer direct file tools. If they cannot rename files atomically, a narrowly scoped local command '
+              'that only publishes this run\'s control files is permitted, subject to normal CLI approval. '
+              'Do not enumerate the run parent or create unrelated directories. '
+              'If control-file publication is refused, stop and report the exact restriction in the terminal; '
+              'do not spend the task budget planning a result that cannot be delivered. '
+              'Save a usable owned-artifact draft early and refine it, instead of only describing planned work. '
+              'The execution budget is ' + str(args.budget_seconds) + ' seconds from initial submission; '
+              'publish PARTIAL/BLOCKED with concrete remaining work if unable to finish. '
               'Report real validation, and use PARTIAL/BLOCKED with concrete REMAINING_WORK if unfinished. '
               'Each handoff array allows up to 12 nonblank strings of at most 2000 characters; '
               'the compact handoff must be at most 8 KiB. '
@@ -163,6 +182,10 @@ def start(run, record, proxy_url=None, no_proxy=False):
                       socket='ai-tui-' + record['attempt_id'], session='cli',
                       proxy_url=proxy_url, proxy=proxy,
                       workspace_lease=str(registry / (record['task_id'] + '.json')))
+        record['cli_version'] = profiles.version(record['profile'])
+        import capabilities
+        compatibility = capabilities.comparison(record['profile'], record['cli_version'], check_version=False)
+        record['cli_capabilities'] = {key: compatibility[key] for key in ('version_matches', 'warning', 'passed', 'failed')}
         save(run, record)
         atomic_json(Path(record['workspace_lease']), dict(run=str(run), task_id=record['task_id']))
         with launch_environment(environment):
@@ -171,12 +194,14 @@ def start(run, record, proxy_url=None, no_proxy=False):
                                  history_limit=50000, width=140, height=45))
         record.update(pane=result['pane'], state='started')
         save(run, record)
-    return dict(run=str(run), state=record['state'], reclaimed_leases=reclaimed, proxy=proxy, proxy_notice=proxy_notice, **result)
+    return dict(run=str(run), state=record['state'], reclaimed_leases=reclaimed, proxy=proxy, proxy_notice=proxy_notice,
+                cli_version=record['cli_version'], cli_capabilities=record['cli_capabilities'], **result)
 
 
 def within_budget(record):
-    if record.get('started_at') is None or time.time() >= record['started_at'] + record['budget_seconds']:
-        raise ToolError('task execution budget exhausted or task not started; inspect/collect/close instead')
+    status = budget_status(record)
+    if status['phase'] == 'prepared' or status['exhausted']:
+        raise ToolError('task ' + status['phase'] + ' budget exhausted or task not started; inspect/collect/close instead')
 
 
 def run_script(name, *args, input=None, timeout=30):
@@ -216,12 +241,14 @@ def observe(run, record, submit=False, confirmed=False, timeout_ms=20000):
         raise ToolError('observe requires a submitted task; use screen for startup inspection')
     within_budget(record)
     check_session(record)
-    remaining = int((record['started_at'] + record['budget_seconds'] - time.time()) * 1000)
-    timeout_ms = min(timeout_ms, remaining, 20000)
+    remaining = int(budget_status(record)['remaining_seconds'] * 1000)
+    timeout_ms = min(timeout_ms, record['budget_seconds'] * 1000 if submit else remaining, 20000)
     if timeout_ms <= 0:
         raise ToolError('wait timeout must be positive')
     mode = 'submit-and-wait' if submit else 'resume'
     if submit:
+        if record.get('budget_origin') == 'submission':
+            record['execution_started_at'] = time.time()
         record['state'] = 'submit_uncertain'
         save(run, record)  # A crash or failed tmux call must never enable an automatic second Enter.
     flags = ['--received-confirmed'] if submit else []
@@ -232,9 +259,12 @@ def observe(run, record, submit=False, confirmed=False, timeout_ms=20000):
         raise ToolError(result.stderr.decode('utf-8', 'replace').strip() or 'wait failed; inspect submission')
     record['state'] = 'running'
     record['last_observation'] = result.stdout.decode('utf-8', 'replace').splitlines()[0]
+    screen = result.stdout.decode('utf-8', 'replace').partition('\n')[2]
+    from approvals import observe_approval
+    approval = observe_approval(record, screen, configured='match=approval' in record['last_observation'])
     save(run, record)
     return dict(state=record['state'], observation=record['last_observation'],
-                screen=result.stdout.decode('utf-8', 'replace').partition('\n')[2])
+                screen=screen, approval=approval, budget=budget_status(record))
 
 
 def collect(run, record):
@@ -284,6 +314,8 @@ def close(run, record, allow_active=False):
             if record['state'] not in TERMINAL | {'closed'}:
                 record['state'] = 'cancelled'
             record['closed'] = True
+            from timing import finish_approval
+            finish_approval(record, 'closed')
             save(run, record)
         # A failed unlink after cleanup must remain retryable even with closed=True.
         if lease and lease.exists():
