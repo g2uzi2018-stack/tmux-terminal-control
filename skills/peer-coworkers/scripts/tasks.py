@@ -13,7 +13,7 @@ import uuid
 from common import Tmux, ToolError
 from config import runs_directory, proxy_setup, load_config
 from lease import locked, workspace_registry, session_gone, prune_dead, inspect_lease, reap
-from records import atomic_json, nonblank, read_json, save
+from records import atomic_json, nonblank, read_json, save, terminal_event
 from results import FIELDS, validate_result
 from snapshot import git, normalized_scope, scope_report, snapshot
 import profiles
@@ -309,6 +309,13 @@ def close(run, record, allow_active=False):
                 record['state'] = 'closed'
             else:
                 check_session(record)
+                # Preserve the actual final wait before destroying this exact session.
+                try:
+                    screen = Tmux(record['socket']).capture(record['pane'])
+                except (OSError, ToolError) as exc:
+                    record['terminal_event_diagnostic'] = 'closing screen unavailable: ' + str(exc)[:900]
+                else:
+                    terminal_event(run, record, 'close', screen)
                 result = session.cleanup(SimpleNamespace(socket=record['socket'], session=record['session'],
                                           task=record['task_id'], allow_active=allow_active))
             if record['state'] not in TERMINAL | {'closed'}:
@@ -322,4 +329,7 @@ def close(run, record, allow_active=False):
             if read_json(lease, 16384)['task_id'] != record['task_id']:
                 raise ToolError('refusing to release another task workspace lease')
             lease.unlink()
-    return dict(state=record['state'], closed=True, cleanup=result, session_gone=bool(gone))
+    result = dict(state=record['state'], closed=True, cleanup=result, session_gone=bool(gone))
+    if record.get('terminal_event_diagnostic'):
+        result['terminal_event_diagnostic'] = record['terminal_event_diagnostic']
+    return result

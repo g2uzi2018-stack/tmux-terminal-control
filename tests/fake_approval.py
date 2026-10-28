@@ -10,12 +10,26 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--log', type=Path, required=True)
 parser.add_argument('--selected', type=int, default=1)
 parser.add_argument('--expanded', action='store_true')
+parser.add_argument('--edit', type=Path)
+parser.add_argument('--incomplete', action='store_true')
 args = parser.parse_args()
 selected = args.selected
 expanded = args.expanded
 
 
 def draw():
+    if args.edit:
+        lines = ['Pending edit', '─' * 100, '', str(args.edit) + '  +1 -1',
+                 '   1  -  initial', '   1  +  updated']
+        if args.incomplete:
+            lines.remove('   1  -  initial')
+        lines += ['', '  shift+tab to auto-approve file edits', 'Accept this file edit?',
+                  ('> ' if selected == 1 else '  ') + '1. Yes, accept this change',
+                  ('> ' if selected == 2 else '  ') + '2. No, reject this change', '',
+                  '  ↑/↓ Navigate · tab Amend · f full diff',
+                  'esc to cancel                                  Gemini 3.8 Flash · medium']
+        os.write(1, ('\x1b[2J\x1b[H' + '\r\n'.join(lines) + '\r\n').encode())
+        return
     choices = ['Yes, run command',
                "Yes, and always allow in this conversation for commands that start with 'git status'",
                "Yes, and always allow for commands that start with 'git status' (Persist to settings.json)",
@@ -54,7 +68,7 @@ try:
                 pending = pending[3:]
                 draw()
             elif pending.startswith(b'\x1b[B'):
-                selected = min(4, selected + 1)
+                selected = min(2 if args.edit else 4, selected + 1)
                 pending = pending[3:]
                 draw()
             elif b'\x1b[A'.startswith(pending) or b'\x1b[B'.startswith(pending):

@@ -3,6 +3,7 @@ import json
 import os
 import stat
 import tempfile
+import time
 
 from common import ToolError
 
@@ -68,3 +69,35 @@ def atomic_json(path, value, limit=None):
 
 def save(run, record):
     atomic_json(run / 'task.json', record, limit=record_limit())
+
+
+def terminal_event(run, record, reason, screen):
+    """Keep a bounded local replay of observations, including the closing screen."""
+    try:
+        path = _terminal_event(run, record, reason, screen)
+    except (OSError, ValueError, ToolError) as exc:
+        # Diagnostic files must not disable observation or exact-session cleanup.
+        record['terminal_event_diagnostic'] = str(exc)[:1000]
+        return None
+    record.pop('terminal_event_diagnostic', None)
+    return path
+
+
+def _terminal_event(run, record, reason, screen):
+    path = run / 'terminal-events.json'
+    try:
+        events = read_json(path, 4 * 1024 * 1024)
+    except FileNotFoundError:
+        events = []
+    if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
+        raise ToolError('terminal event history must be a list of records')
+    data = screen.encode('utf-8')
+    event = dict(task_id=record['task_id'], attempt_id=record['attempt_id'],
+                 round=record['round'], reason=reason,
+                 screen=data[-32768:].decode('utf-8', 'ignore'),
+                 screen_truncated=len(data) > 32768)
+    if events and all(events[-1].get(key) == value for key, value in event.items()):
+        return str(path)
+    event['at'] = time.time()
+    atomic_json(path, [*events[-15:], event], limit=4 * 1024 * 1024)
+    return str(path)

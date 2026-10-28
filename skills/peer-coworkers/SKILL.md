@@ -15,7 +15,7 @@ description: 通过独立 CLI/TUI 工作进程执行有界实现、测试、研�
 
 1. 明确目标、角色、归属路径与可验证的验收条件，用 `init --profile PROFILE` 建立工作包。用户指定的 CLI/模型必须实际绑定；查到模型列表只能记为“已发现”，不能记为“已启动/已验收”。合同与范围检查不是沙箱；需要限制读取或外发时，先准备只包含允许材料的隔离环境。
 2. `start` 内置代理准备，默认自动探测交互 Bash 中的代理函数；用 `--no-proxy` 跳过准备。启动本身不粘贴、不提交、不确认信任。通过 `screen` 检查界面，再 `paste`；确认短指针实际接收后，`submit --received-confirmed` 一次。
-3. 用 `wait` 先确认 `worker_ready`（当前轮 `ready.json` 已写回），再观察交付；有效结果可直接进入收集。未就绪时先处理控制目录权限，不继续派大任务。`approval` 返回具体动作和画面指纹；核对已有授权后，用 `decision` 单次允许或拒绝，不靠裸 Enter 猜菜单。当前应答仅支持已识别的 agy 四项命令菜单，其他布局先读屏。静止、提示和退出不是完成。按键与多行操作见 [终端规则](references/terminal-control.md)。
+3. 用 `wait` 先确认 `worker_ready`（当前轮 `ready.json` 已写回），再观察交付；有效结果可直接进入收集。未就绪时先处理控制目录权限，不继续派大任务。`approval` 返回具体动作和画面指纹；核对已有授权后，用 `decision` 单次允许或拒绝，不靠裸 Enter 猜菜单。支持已识别的 agy 四项命令菜单和两项文件编辑菜单；编辑须完整显示差异并属于归属路径或当前控制文件。其他布局先读屏。及时处理待审批，避免观察空档耗尽预算；`terminal-events.json` 保留有界等待/关闭画面。静止、提示和退出不是完成。按键与多行操作见 [终端规则](references/terminal-control.md)。
 4. 有效问题或定向修复通过 `reply --message-file` 回答；每次递增 round 并归档旧结果，默认最多两次。粘贴、提交或回复不明时保留 uncertain 状态，先诊断，不能重发 Enter。取消只在当前版本有通过的 probe 时发送一次 Escape，否则明确关闭。
 5. `collect` 校验本任务、attempt、round、六字段合同与范围。DONE 仅进入待验收；主代理独立检查实际产物、diff 和针对性测试，再 `accept --evidence`。需要独立审查时提供原始要求与最终产物，避免灌入实现者自评。
 6. 保留交互时交付 run/socket/pane；明确结束时 `close`，活跃进程需 `--allow-active`。会话已消失时释放租约；未确认启动或损坏记录先 `reap` 检查，再决定是否对精确 task 强制回收。

@@ -4,7 +4,7 @@ from pathlib import Path
 import time
 
 from common import DeadlineReached, Tmux, ToolError
-from records import read_json, save
+from records import read_json, save, terminal_event
 from results import validate_question, validate_result, validate_ready
 from wait import bounded_search, compile_pattern, prompt_region
 from approvals import observe_approval
@@ -129,6 +129,9 @@ def wait_event(run, record, timeout_ms=25000, still_ms=600, poll_ms=50, stable_m
             result['next_action'] = 'inspect control-file access before spending time on substantive work'
     if invalid and result['reason'] != 'result_ready':
         result['result_diagnostic'] = invalid
+    result['terminal_events_path'] = terminal_event(run, record, result['reason'], screen)
+    if record.get('terminal_event_diagnostic'):
+        result['terminal_event_diagnostic'] = record['terminal_event_diagnostic']
     record['last_wait'] = {key: value for key, value in result.items() if key not in ('screen', 'result')}
     save(run, record)
     return result

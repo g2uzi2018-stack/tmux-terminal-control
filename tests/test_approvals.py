@@ -15,13 +15,18 @@ class ApprovalTests(unittest.TestCase):
     init = fixtures.CoworkTests.init
     cleanup_session = fixtures.CoworkTests.cleanup_session
 
-    def menu(self, selected=1, expanded=False):
+    def menu(self, selected=1, expanded=False, edit=False, incomplete=False):
         self.record['profile'] = 'agy'
         self.log = self.run / 'decisions.txt'
         command = [sys.executable, str(fixtures.ROOT / 'tests/fake_approval.py'),
                    '--log', str(self.log), '--selected', str(selected)]
         if expanded:
             command += ['--expanded']
+        if edit:
+            command += ['--edit', str(self.cwd / 'existing.txt')]
+            self.record.update(role='implement', owned_paths=['existing.txt'])
+        if incomplete:
+            command += ['--incomplete']
         with patch.object(tasks.profiles, 'command', return_value=command), \
                 patch.object(tasks.profiles, 'version', return_value='fixture-v1'):
             tasks.start(self.run, self.record)
@@ -150,3 +155,129 @@ class ApprovalTests(unittest.TestCase):
                 self.decide(pending)
         self.assertFalse(self.log.exists())
         self.assertEqual(self.record['pending_approval']['status'], 'uncertain')
+
+    def test_file_edit_wait_returns_target_complete_diff_and_approval_budget(self):
+        pending = self.menu(edit=True)
+        self.assertEqual(pending['dialog']['kind'], 'agy_file_edit')
+        self.assertEqual(pending['dialog']['path'], str(self.cwd / 'existing.txt'))
+        self.assertTrue(pending['dialog']['diff_fully_visible'])
+        self.assertEqual(self.record['last_wait']['budget']['phase'], 'approval')
+        events = tasks.read_json(self.run / 'terminal-events.json')
+        self.assertIn('Accept this file edit?', events[-1]['screen'])
+        self.assertEqual(events[-1]['reason'], 'approval')
+        self.assertFalse(self.log.exists())
+
+    def test_captured_agy_149_card_is_recognized_with_all_changes(self):
+        screen = (fixtures.ROOT / 'tests/fixtures/agy-1.4.9-pending-edit.txt').read_text()
+        dialog = approvals.file_edit_dialog('agy', screen)
+        self.assertIsNotNone(dialog)
+        self.assertEqual((dialog['additions'], dialog['deletions']), (6, 2))
+        self.assertTrue(dialog['diff_fully_visible'])
+        self.assertNotIn('shift+tab', dialog['diff'])
+        clipped = screen.replace("   6  +                  if code != 200:\n", '')
+        self.assertFalse(approvals.file_edit_dialog('agy', clipped)['diff_fully_visible'])
+
+    def test_file_edit_allow_once_from_reject_selection_and_replay_refused(self):
+        pending = self.menu(edit=True, selected=2)
+        self.decide(pending)
+        deadline = time.monotonic() + 1
+        while not self.log.exists():
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(.01)
+        self.assertEqual(self.log.read_text(), '1\n')
+        with self.assertRaises(tasks.ToolError):
+            self.decide(pending)
+        self.assertEqual(self.log.read_text(), '1\n')
+        self.assertEqual(self.record['interventions'][-1]['dialog_kind'], 'agy_file_edit')
+
+    def test_file_edit_deny_uses_second_option(self):
+        self.decide(self.menu(edit=True), 'deny')
+        deadline = time.monotonic() + 1
+        while not self.log.exists():
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(.01)
+        self.assertEqual(self.log.read_text(), '2\n')
+
+    def test_incomplete_file_diff_can_only_be_rejected(self):
+        pending = self.menu(edit=True, incomplete=True)
+        self.assertEqual(pending['dialog']['decisions'], ['deny'])
+        with self.assertRaisesRegex(tasks.ToolError, 'incomplete/truncated'):
+            self.decide(pending)
+        self.assertFalse(self.log.exists())
+        self.decide(pending, 'deny')
+
+    def test_file_edit_outside_scope_or_changed_symlink_is_not_accepted(self):
+        pending = self.menu(edit=True)
+        self.record['owned_paths'] = ['other.txt']
+        with self.assertRaisesRegex(tasks.ToolError, 'outside owned'):
+            self.decide(pending)
+        self.record['owned_paths'] = ['existing.txt']
+        target = self.cwd / 'existing.txt'
+        target.unlink()
+        target.symlink_to(self.root / 'outside.txt')
+        with self.assertRaisesRegex(tasks.ToolError, 'outside owned'):
+            self.decide(pending)
+        self.assertFalse(self.log.exists())
+
+    def test_file_edit_different_patch_after_submit_is_new_approval(self):
+        pending = self.menu(edit=True)
+        screen = approvals.Tmux(self.record['socket']).capture(self.record['pane'])
+        self.decide(pending)
+        self.assertEqual(approvals.observe_approval(self.record, screen)['approval_id'], pending['approval_id'])
+        other = approvals.observe_approval(self.record, screen.replace('updated', 'different'))
+        self.assertNotEqual(other['approval_id'], pending['approval_id'])
+        self.assertEqual(other['status'], 'waiting')
+
+    def test_file_edit_changed_screen_and_unknown_menu_send_nothing(self):
+        pending = self.menu(edit=True)
+        screen = approvals.Tmux(self.record['socket']).capture(self.record['pane'])
+        with patch.object(approvals.Tmux, 'capture', return_value=screen.replace('updated', 'different')):
+            with self.assertRaisesRegex(tasks.ToolError, 'screen changed'):
+                self.decide(pending)
+        for candidate in (screen + '\n> explain this example\n',
+                          screen.replace('2. No, reject this change', '2. Always accept'),
+                          screen.replace('Pending edit', 'Example edit'),
+                          screen.replace('> 1.', '  1.')):
+            self.assertIsNone(approvals.file_edit_dialog('agy', candidate))
+        self.assertIsNone(approvals.file_edit_dialog('cursor', screen))
+        self.assertFalse(self.log.exists())
+
+    def test_current_control_file_edits_allowed_but_old_archives_refused(self):
+        for name in ('ready.json', 'ready.json.tmp', 'result.json', 'question.json.tmp'):
+            approvals.check_edit_scope(self.record, str(self.run / name))
+        for name in ('task.json', 'prompt.txt', 'reply-1.md', 'result.round0.json', 'terminal-events.json'):
+            with self.assertRaises(tasks.ToolError):
+                approvals.check_edit_scope(self.record, str(self.run / name))
+
+    def test_external_symlink_alias_to_owned_file_is_not_an_owned_edit(self):
+        self.record['owned_paths'] = ['existing.txt']
+        alias = self.root / 'external-alias.txt'
+        alias.symlink_to(self.cwd / 'existing.txt')
+        with self.assertRaisesRegex(tasks.ToolError, 'outside owned'):
+            approvals.check_edit_scope(self.record, str(alias))
+
+    def test_closing_retains_final_file_edit_screen(self):
+        self.menu(edit=True)
+        tasks.close(self.run, self.record, allow_active=True)
+        event = tasks.read_json(self.run / 'terminal-events.json')[-1]
+        self.assertEqual(event['reason'], 'close')
+        self.assertIn('Accept this file edit?', event['screen'])
+
+    def test_broken_diagnostics_do_not_disable_wait_or_exact_cleanup(self):
+        self.menu(edit=True)
+        path = self.run / 'terminal-events.json'
+        path.write_text('{broken')
+        result = wait_event(self.run, self.record, timeout_ms=500)
+        self.assertEqual(result['reason'], 'approval')
+        self.assertIn('terminal_event_diagnostic', result)
+        result = tasks.close(self.run, self.record, allow_active=True)
+        self.assertTrue(result['closed'])
+        self.assertIn('terminal_event_diagnostic', result)
+        self.assertEqual(path.read_text(), '{broken')
+
+    def test_final_capture_failure_does_not_disable_exact_cleanup(self):
+        self.menu(edit=True)
+        with patch.object(tasks.Tmux, 'capture', side_effect=tasks.ToolError('transient capture failure')):
+            result = tasks.close(self.run, self.record, allow_active=True)
+        self.assertTrue(result['closed'])
+        self.assertIn('closing screen unavailable', result['terminal_event_diagnostic'])

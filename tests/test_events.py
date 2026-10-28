@@ -7,7 +7,7 @@ from unittest.mock import patch
 from support import TmuxCase
 import tasks as cowork
 from observation import wait_event
-from records import atomic_json
+from records import atomic_json, terminal_event
 from results import validate_question
 
 
@@ -125,3 +125,18 @@ class EventTests(TmuxCase):
         self.assertEqual(self.wait()['reason'], 'budget_exhausted')
         atomic_json(Path(self.record['result_path']), self.result())
         self.assertEqual(self.wait()['reason'], 'result_ready')
+
+    def test_terminal_history_is_bounded_deduplicated_and_private(self):
+        for number in range(20):
+            terminal_event(self.run, self.record, 'attention', 'screen ' + str(number))
+        path = self.run / 'terminal-events.json'
+        events = cowork.read_json(path)
+        self.assertEqual(len(events), 16)
+        self.assertEqual(events[0]['screen'], 'screen 4')
+        terminal_event(self.run, self.record, 'attention', 'screen 19')
+        self.assertEqual(cowork.read_json(path), events)
+        terminal_event(self.run, self.record, 'close', '中' * 40000)
+        final = cowork.read_json(path)[-1]
+        self.assertTrue(final['screen_truncated'])
+        self.assertLessEqual(len(final['screen'].encode('utf-8')), 32768)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)

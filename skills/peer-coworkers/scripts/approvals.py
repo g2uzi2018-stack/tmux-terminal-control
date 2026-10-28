@@ -1,15 +1,16 @@
 """Advisory dialog recognition and explicit, screen-bound single decisions.
 
 Recognition is never authorization or a current-version compatibility claim.
-Only the observed agy numbered command dialog supports scripted decisions.
+Only observed agy command and file-edit menus support scripted decisions.
 """
 import hashlib
+from pathlib import Path
 import re
 import time
 import uuid
 
 from common import Tmux, ToolError, send_submit
-from records import nonblank, save
+from records import nonblank, save, terminal_event
 from timing import finish_approval
 
 
@@ -72,8 +73,98 @@ def command_dialog(profile, screen):
                 decisions=['allow-once', 'deny'] if visible else ['deny'])
 
 
+def file_edit_dialog(profile, screen):
+    """Recognize the observed two-choice edit card, including incomplete diffs.
+
+    A missing/truncated diff may be rejected but must never be accepted. Counts
+    bind approval to all changed lines, not just the visible tail of a large edit.
+    """
+    if profile != 'agy':
+        return None
+    lines = screen.rstrip().splitlines()
+    if not lines or not re.match(r'^esc to cancel\s+', lines[-1]):
+        return None
+    starts = [i for i, line in enumerate(lines) if line == 'Pending edit']
+    if not starts:
+        return None
+    region = lines[starts[-1]:]
+    try:
+        question = region.index('Accept this file edit?')
+    except ValueError:
+        return None
+    headers = [(i, re.fullmatch(r'(/.+?)\s+\+(\d+)\s+-(\d+)', line))
+               for i, line in enumerate(region[1:question], 1)]
+    headers = [(i, match) for i, match in headers if match]
+    if len(headers) != 1:
+        return None
+    header, match = headers[0]
+    path, additions, deletions = match[1], int(match[2]), int(match[3])
+    if '..' in Path(path).parts or '\x00' in path:
+        return None
+    choices, selected = {}, []
+    for line in region[question + 1:]:
+        choice = re.fullmatch(r'\s*(>)?\s*(\d+)\.\s+(.+?)\s*', line)
+        if choice:
+            number = int(choice[2])
+            if number in choices:
+                return None
+            choices[number] = choice[3]
+            if choice[1]:
+                selected.append(number)
+    if (choices != {1: 'Yes, accept this change', 2: 'No, reject this change'}
+            or len(selected) != 1
+            or not any('↑/↓ Navigate · tab Amend · f full diff' in line for line in region[question + 1:])):
+        return None
+    diff = '\n'.join(region[header + 1:question]).strip()
+    # The shortcut hint isn't part of the patch identity.
+    diff = diff.removesuffix('shift+tab to auto-approve file edits').rstrip()
+    markers = re.findall(r'^\s*\d+\s+([+-])(?:\s|$)', diff, re.MULTILINE)
+    complete = (len(diff.encode('utf-8')) <= 32768 and additions + deletions > 0
+                and markers.count('+') == additions and markers.count('-') == deletions
+                and not re.search(r'(?im)^\s*(?:[⋯…]|.*\(\d+ lines? hidden\)|.*\btruncated\b)\s*$', diff))
+    return dict(kind='agy_file_edit', path=path, diff=diff,
+                diff_sha256=screen_hash(diff), additions=additions, deletions=deletions,
+                diff_fully_visible=complete, selected=selected[0], choices=choices,
+                source='observed_dialog', compatibility_verified=False,
+                decisions=['allow-once', 'deny'] if complete else ['deny'])
+
+
+def approval_dialog(profile, screen):
+    return file_edit_dialog(profile, screen) or command_dialog(profile, screen)
+
+
+def same_operation(first, second):
+    if first.get('kind') == second.get('kind') == 'agy_file_edit':
+        return (first['path'], first['diff_sha256']) == (second['path'], second['diff_sha256'])
+    command_kinds = {'agy_command', 'agy_expanded_command'}
+    return (first.get('kind') in command_kinds and second.get('kind') in command_kinds
+            and first['command'] == second['command'])
+
+
+def check_edit_scope(record, path):
+    """Check the current target again before acceptance; never broaden CLI grants."""
+    target = Path(path)
+    if not target.is_absolute() or '..' in target.parts or '.git' in target.parts:
+        raise ToolError('file edit is outside owned paths and permitted control files')
+    run = Path(record['result_path']).parent.resolve()
+    controls = {name + suffix for name in ('ready.json', 'result.json', 'question.json')
+                for suffix in ('', '.tmp')}
+    root = Path(record['cwd']).resolve()
+    for candidate in (target, target.resolve()):
+        if candidate.parent == run and candidate.name in controls:
+            continue
+        try:
+            relative = candidate.relative_to(root).as_posix()
+        except ValueError:
+            relative = None
+        if (relative is None or '.git' in candidate.parts
+                or not any(scope == '.' or relative == scope or relative.startswith(scope + '/')
+                           for scope in record.get('owned_paths', []))):
+            raise ToolError('file edit is outside owned paths and permitted control files')
+
+
 def observe_approval(record, screen, configured=False):
-    dialog = command_dialog(record['profile'], screen)
+    dialog = approval_dialog(record['profile'], screen)
     if dialog is None and not configured:
         # An unrecognized/transient paint is not proof that an uncertain Enter
         # was processed. Keep that delivery evidence until explicit closure.
@@ -87,7 +178,7 @@ def observe_approval(record, screen, configured=False):
     if pending and pending['status'] == 'uncertain':
         return pending
     if (pending and pending['status'] == 'submitted' and dialog
-            and pending['dialog'].get('command') == dialog['command']):
+            and same_operation(pending['dialog'], dialog)):
         return pending
     if not pending or pending['screen_sha256'] != digest:
         finish_approval(record, 'screen_changed')
@@ -112,18 +203,28 @@ def decide(run, record, approval_id, digest, decision, evidence):
     tmux = Tmux(record['socket'])
     tmux.alive(record['pane'])
     before = tmux.capture(record['pane'])
-    dialog = command_dialog(record['profile'], before)
+    dialog = approval_dialog(record['profile'], before)
     if screen_hash(before) != digest or dialog is None:
         raise ToolError('approval screen changed or unsupported dialog; inspect it before deciding')
-    if decision == 'allow-once' and not dialog['command_fully_visible']:
-        raise ToolError('approval command is collapsed/truncated; expand and inspect it before allowing')
-    target = 1 if decision == 'allow-once' else 4
+    editing = dialog['kind'] == 'agy_file_edit'
+    if decision == 'allow-once':
+        if editing:
+            if not dialog['diff_fully_visible']:
+                raise ToolError('file diff is incomplete/truncated; inspect full diff before allowing')
+            check_edit_scope(record, dialog['path'])
+        elif not dialog['command_fully_visible']:
+            raise ToolError('approval command is collapsed/truncated; expand and inspect it before allowing')
+    target = 1 if decision == 'allow-once' else (2 if editing else 4)
     # Persist before the first terminal side effect, including navigation. A
     # partial failure must not turn a second Enter into a second tool call.
     finish_approval(record, 'uncertain')
     entry = dict(action='approval', approval_id=approval_id, screen_sha256=digest,
                  decision=decision, evidence=evidence, status='uncertain', at=time.time(), round=record['round'])
     record.setdefault('interventions', []).append(entry)
+    entry['dialog_kind'] = dialog['kind']
+    if editing:
+        entry.update(path=dialog['path'], diff_sha256=dialog['diff_sha256'])
+    terminal_event(run, record, 'approval_decision', before)
     save(run, record)
     if dialog['kind'] == 'agy_expanded_command':
         entry['reviewed_command_sha256'] = screen_hash(dialog['command'])
@@ -151,7 +252,7 @@ def decide(run, record, approval_id, digest, decision, evidence):
     deadline = time.monotonic() + 1
     while True:
         current = tmux.capture(record['pane'])
-        current_dialog = command_dialog(record['profile'], current)
+        current_dialog = approval_dialog(record['profile'], current)
         if current_dialog and current_dialog['selected'] == target:
             expected = before if not delta else None
             if expected is None:
@@ -165,6 +266,8 @@ def decide(run, record, approval_id, digest, decision, evidence):
         if time.monotonic() >= deadline:
             raise ToolError('approval navigation unconfirmed; decision remains uncertain, do not resend')
         time.sleep(.02)
+    if editing and decision == 'allow-once':
+        check_edit_scope(record, dialog['path'])
     send_submit(tmux, record['pane'], 'Enter', True)
     pending['status'] = 'submitted'
     entry['status'] = 'submitted'

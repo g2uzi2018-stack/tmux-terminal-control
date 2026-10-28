@@ -1,0 +1,26 @@
+Pending edit
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/fixture/project/tests/run_communications_board_soak.py  +6 -2
+   2                 try:
+   3                     cfg = c.config()
+   4                     code, _ = c.http('config', 'POST', {'channel': original['channel'], 'update_period_s':
+                         original['update_period_s']}, cfg['config_rev'])
+   5  -                  result['configuration_restored'] = code == 200
+   5  +                  result['configuration_restored'] = (code == 200)
+   6  +                  if code != 200:
+   7  +                      result['status'] = 'FAIL'
+   8  +                      result['restore_error'] = f'Config restore HTTP {code}'
+   9                 except Exception as e:
+  10                     result['configuration_restored'] = False
+   8  -                  result['restore_error'] = repr(e)
+  11  +                  result['restore_error'] = repr(e)
+  12  +                  result['status'] = 'FAIL'
+
+  shift+tab to auto-approve file edits
+Accept this file edit?
+> 1. Yes, accept this change
+  2. No, reject this change
+
+  ↑/↓ Navigate · tab Amend · f full diff
+esc to cancel                                                                                                      Gemini 3.8 Flash · medium
