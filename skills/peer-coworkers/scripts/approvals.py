@@ -149,6 +149,10 @@ def check_edit_scope(record, path):
     run = Path(record['result_path']).parent.resolve()
     controls = {name + suffix for name in ('ready.json', 'result.json', 'question.json')
                 for suffix in ('', '.tmp')}
+    if record.get('report_path'):
+        report = Path(record['report_path'])
+        if report.parent == run and report.name == 'report.round' + str(record['round']) + '.md':
+            controls.update((report.name, report.name + '.tmp'))
     root = Path(record['cwd']).resolve()
     for candidate in (target, target.resolve()):
         if candidate.parent == run and candidate.name in controls:

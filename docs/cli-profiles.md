@@ -14,7 +14,7 @@ These are actual CLI runs with sandbox flags retained. Results are limited to th
 | Full 150-line history | Passed | Passed | Passed with 90-second limit; initial shorter attempt timed out | Passed |
 | Exact cleanup | Passed | Passed | Passed | Passed |
 
-Commands: `PEER_LIVE=1 PEER_PROFILE=PROFILE python3 -m unittest discover -s tests -p live_probe.py -v`, selecting each profile. Cursor's initial/retest and agy's initial runs used 25 seconds per check, 240 total. Codex and agy's longer retest used 90 seconds per check, 540 total; cleanup/diagnostic reads have separate bounded overhead. A successful harness means all outcomes were recorded and exact cleanup succeeded; it does not mean every capability passed.
+Historical command (the test wrapper was removed on 2026-11-02): `PEER_LIVE=1 PEER_PROFILE=PROFILE python3 -m unittest discover -s tests -p live_probe.py -v`, selecting each profile. Cursor's initial/retest and agy's initial runs used 25 seconds per check, 240 total. Codex and agy's longer retest used 90 seconds per check, 540 total; cleanup/diagnostic reads have separate bounded overhead. A successful harness means all outcomes were recorded and exact cleanup succeeded; it does not mean every capability passed. Current runtime checks use `cowork.py probe`.
 
 Reports: [Codex](evidence/probe-codex.json), [Cursor initial](evidence/probe-cursor-initial.json), [Cursor retest](evidence/probe-cursor.json), [agy initial](evidence/probe-agy-initial.json), [agy longer retest](evidence/probe-agy.json). Do not replace unsuccessful outcomes with inferred passes. The latest matching report is authoritative even when an earlier run passed a capability.
 
@@ -31,7 +31,7 @@ Codex's interrupted conversation retained a background tool process, so the hear
 
 The WP0 write-location experiment used Codex `exec --sandbox workspace-write --ephemeral` and Cursor `--sandbox enabled --print`, with 120 seconds each, comparing real user-state paths outside both cwd and `/tmp` against `/tmp`. Both refused/rejected the state target and wrote the unpredictable nonce under `/tmp`. This justifies default run placement; it does not establish that an interactive CLI will approve writing there. Evidence: [WP0 JSON](evidence/wp0-sandbox-experiment.json).
 
-Default tests use fake peers and raw-terminal fixtures inside real tmux. All nine probe checks execute there, including an actual heartbeat child, process identity/progress checks and an eight-line approval region. Negative fixtures reject an echoed prompt, a 149-line answer, an interruption label with a running child, and a forged heartbeat naming an unrelated process. Those are tool regressions, not real CLI compatibility results.
+The former default tests used fake peers and raw-terminal fixtures inside real tmux. All nine probe checks executed there, including an actual heartbeat child, process identity/progress checks and an eight-line approval region. Negative fixtures rejected an echoed prompt, a 149-line answer, an interruption label with a running child, and a forged heartbeat naming an unrelated process. Those were tool regressions, not real CLI compatibility results; their source and fixtures were removed on 2026-11-02.
 
 The earlier doctor correctly warned about agy 1.4.2 against a 1.4.0 report;
 see the [historical doctor summary](evidence/doctor.json). After the installed

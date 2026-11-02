@@ -8,7 +8,7 @@ import time
 from common import KEYS, Tmux, ToolError, send_submit
 from observation import receipt
 from records import read_json, save
-from results import validate_question, validate_result
+from results import validate_question, validate_result, validate_ready, result_template, result_instructions
 from wait import compile_pattern, prompt_region, bounded_search
 import capabilities
 import profiles
@@ -113,6 +113,8 @@ def reply(run, record, message_file):
     from tasks import check_session, within_budget, run_script
     if record['state'] not in ('running', 'awaiting_reply', 'partial', 'blocked', 'awaiting_acceptance'):
         raise ToolError('reply requires a submitted task; reply_uncertain must never be retried')
+    if record.get('closed'):
+        raise ToolError('task is closed')
     if record['reply_count'] >= record['max_replies']:
         raise ToolError('max_replies reached; create a new task')
     within_budget(record)
@@ -121,27 +123,48 @@ def reply(run, record, message_file):
         raise ToolError('resolve the pending approval before replying; never paste a task into an approval menu')
     text = read_message(message_file)
     old_round = record['round']
-    result_path, question_path = Path(record['result_path']), run / 'question.json'
-    if os.path.lexists(result_path):
-        validate_result(read_json(result_path, 16384), record)
-    if os.path.lexists(question_path):
-        validate_question(read_json(question_path, 16384), record)
+    result_path = Path(record['result_path'])
+    target = run / ('reply-' + str(old_round + 1) + '.md')
+    archives = []
+    for path, label, validator, limit in (
+            (result_path, 'result', validate_result, 16384),
+            (run / 'question.json', 'question', validate_question, 16384),
+            (run / 'ready.json', 'ready', validate_ready, 4096)):
+        archive = run / (label + '.round' + str(old_round) + '.json')
+        if os.path.lexists(archive):
+            raise ToolError('round archive already exists; inspect prior reply before sending')
+        if os.path.lexists(path):
+            if not stat.S_ISREG(path.lstat().st_mode):
+                raise ToolError('prior control artifact must be a regular file; inspect unsafe path before replying')
+            archives.append((path, archive, validator, limit))
+    if os.path.lexists(target):
+        raise ToolError('reply file already exists; inspect prior reply before sending')
     # Persist before *any* side effect. Neither paste nor Enter can be retried.
     record.update(state='reply_uncertain', round=old_round + 1, reply_count=record['reply_count'] + 1)
+    if record.get('report_path'):
+        record['report_path'] = str(run / ('report.round' + str(record['round']) + '.md'))
     entry = intervention(run, record, 'reply')
-    for path, label in ((result_path, 'result'), (question_path, 'question')):
-        if os.path.lexists(path):
-            archive = run / (label + '.round' + str(old_round) + '.json')
-            if os.path.lexists(archive):
-                raise ToolError('round archive already exists; inspect uncertain reply')
-            os.replace(path, archive)
-    example = dict(task_id=record['task_id'], attempt_id=record['attempt_id'], round=record['round'],
-                   handoff=dict(STATUS='DONE', RESULT=[], EVIDENCE=[], VALIDATION=[], REMAINING_WORK=[], RISKS=[]))
-    target = run / ('reply-' + str(record['round']) + '.md')
+    prior = dict(record, round=old_round)
+    entry['archives'] = []
+    # Archive bytes first; validation is diagnostic and never gates correction.
+    # Oversized/invalid UTF-8/JSON artifacts need no unbounded read or reserialization.
+    for path, archive, validator, limit in archives:
+        os.replace(path, archive)
+        archived = dict(path=str(archive), bytes=archive.lstat().st_size)
+        try:
+            validator(read_json(archive, limit), prior)
+            archived['valid'] = True
+        except (OSError, ValueError, KeyError, TypeError, ToolError, RecursionError) as exc:
+            archived.update(valid=False, diagnostic=str(exc)[:1000])
+        entry['archives'].append(archived)
+        save(run, record)
+    example = result_template(record)
     instructions = ('Continue the original bounded task for round ' + str(record['round']) + '. Do not delegate or change permissions. '
                     'Write the current-round result atomically to ' + str(result_path) + '. Old rounds are invalid. '
                     'You may atomically write a current-round question.json as documented in prompt.txt.\n'
                     'First publish ready.json with the current task_id, attempt_id, round and STATUS="READY".\n'
+                    + result_instructions(record) + '\n'
+                    + 'Prior control artifacts (archived unchanged): ' + json.dumps(entry['archives']) + '\n'
                     'Result envelope: ' + json.dumps(example) + '\n\n' + text + '\n')
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as stream:
@@ -161,7 +184,7 @@ def reply(run, record, message_file):
         tmux.set_pane_option(record['pane'], name, value)
     send_submit(tmux, record['pane'], 'Enter', True)
     record['state'] = 'running'
-    for key in ('result', 'scope', 'collected_snapshot', 'last_wait', 'worker_ready_round'):
+    for key in ('result', 'scope', 'collected_snapshot', 'collected_report', 'last_wait', 'worker_ready_round'):
         record.pop(key, None)
     entry['status'] = 'submitted'
     save(run, record)

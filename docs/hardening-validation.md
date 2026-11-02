@@ -1,5 +1,52 @@
 # Hardening validation — 2026-10-18
 
+## Test-code removal — 2026-11-02
+
+At the user's request, all 23 tracked files under `tests/` were removed,
+including automated cases, fake peers/TUIs, fixtures, support code and live
+experiment wrappers. Automatic approval rejected both recursive removal and
+individual deletion of the 15 generated `.pyc` files with "blocked by policy";
+those caches and the containing directories remain pending manual removal.
+Current contributor instructions no longer require the deleted tools. The
+results and commands below are historical records from before removal, not
+commands supported by the current checkout. The production `probe` command
+remains part of the CLI's version-bound capability detection.
+
+## Result recovery and review contracts — 2026-11-02
+
+The baseline passed 202 tests in 45.781 seconds. Final validation passed **205
+tests in 45.273 seconds, zero skips**: the 202 existing tests plus three focused
+regression cases defined only in memory, using real isolated tmux sessions in
+WSL. Earlier temporary edge-case tests and raw logs were removed per the user's
+instruction; existing test files were unchanged at that point. `git diff --check` also passed.
+No smoke tests, model services or live CLI compatibility probes were run.
+
+The failure was reproduced from the code: `reply` validated the old result and
+question before archiving or sending a correction. An invalid prior artifact
+therefore disabled its own recovery channel. The temporary real-tmux regression kept
+collection strict, then proves correction delivery and byte-for-byte archival
+for an over-8-KiB handoff, DONE with unfinished work, malformed JSON, duplicate
+keys, invalid UTF-8, a 1-MiB invalid file, stale task identity, boolean round,
+invalid handoff shape and excessive JSON nesting. Invalid question/ready files
+are also preserved and correctable. These are deterministic reproductions, not
+claims to have recovered the original incident's two handoff files.
+
+Additional regressions cover preflight archive/reply collisions, symlink/FIFO/
+directory refusal, failure between archival and terminal delivery, unconfirmed
+receipt, and failed submission. Durable uncertainty continues to prevent a
+second paste/Enter after an attempted reply. Existing reply-count, budget and
+pending-approval limits remain in force.
+
+New review contracts require a separate review verdict; DONE only describes
+assigned-work completion. A completed review requesting changes can be accepted
+as a review report without asserting code delivery readiness. Legacy contracts
+retain their previous schema. Each new task also permits a per-round UTF-8
+report up to 1 MiB, including for read-only roles. Collection fingerprints it;
+acceptance rejects content changes, additions or deletions since collection.
+Tests verify the exact 8192/8193-byte handoff boundary, report size/type bounds,
+and file-edit permissions limited to the current round's report and temporary
+file. Initial and reply prompts share the same result rules and template.
+
 ## Delivery reliability follow-up — 2026-10-24
 
 The current suite passed **185 tests in 58.052 seconds, zero skips** using

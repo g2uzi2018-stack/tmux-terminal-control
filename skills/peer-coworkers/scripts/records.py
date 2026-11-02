@@ -31,21 +31,26 @@ def record_limit():
     return load_config().get('snapshot', {}).get('max_record_bytes', 64 * 1024 * 1024)
 
 
-def read_json(path, limit=None):
-    task_record = limit is None
-    limit = record_limit() if task_record else limit
-    # O_NOFOLLOW prevents accidental result/record symlink traversal on Linux/WSL.
+def read_bytes(path, limit, limit_error='file exceeds byte limit'):
+    """Read bounded regular files without following links or blocking on FIFOs."""
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode):
-            raise ToolError('JSON must be a bounded regular file')
+            raise ToolError('file must be a bounded regular file')
         if info.st_size > limit:
-            raise ToolError('task record exceeds snapshot.max_record_bytes; adjust it in config.json'
-                            if task_record else 'JSON exceeds byte limit')
+            raise ToolError(limit_error)
         data = stream.read(limit + 1)
     if len(data) > limit:
-        raise ToolError('JSON exceeds byte limit')
+        raise ToolError(limit_error)
+    return data
+
+
+def read_json(path, limit=None):
+    task_record = limit is None
+    limit = record_limit() if task_record else limit
+    data = read_bytes(path, limit, 'task record exceeds snapshot.max_record_bytes; adjust it in config.json'
+                      if task_record else 'JSON exceeds byte limit')
     return json.loads(data.decode('utf-8'), object_pairs_hook=no_duplicates)
 
 

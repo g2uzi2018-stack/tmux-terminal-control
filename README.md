@@ -19,12 +19,8 @@ The user's default is standard speed: enable Fast only when explicitly requested
 
 Start with the [quick start](docs/quick-start.md). See the [command reference](docs/commands.md), [state machine](docs/state-machine.md), [scope and risk boundaries](docs/boundaries.md), [configuration example](config.example.json), and [contribution guide](CONTRIBUTING.md).
 
-Run deterministic tests, including real tmux sessions:
+Invalid result files remain correctable through `reply`: their original bytes are archived while collection and acceptance stay strict. Review completion and code verdict are separate; long reports use a permitted per-round file with a digest checked at acceptance. See the [result and recovery contract](skills/peer-coworkers/references/task-contract.md).
 
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-Live sandbox experiments and compatibility probes are separately opt-in. Results and limitations are dated in [hardening validation](docs/hardening-validation.md) and [CLI profiles](docs/cli-profiles.md). [Reviewed evidence summaries](docs/evidence/README.md) are committed; raw screens and machine-specific history stay in ignored [local records](docs/local/README.md). Fake TUI results do not establish real CLI compatibility.
+The repository does not retain test source code or fixtures. Runtime compatibility probes remain available through the `probe` command and are opt-in. Historical results and limitations are dated in [hardening validation](docs/hardening-validation.md) and [CLI profiles](docs/cli-profiles.md). [Reviewed evidence summaries](docs/evidence/README.md) are committed; raw screens and machine-specific history stay in ignored [local records](docs/local/README.md).
 
 [MIT license](LICENSE). Workflow attribution: [NOTICE](NOTICE).

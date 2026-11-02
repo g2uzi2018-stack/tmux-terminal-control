@@ -14,7 +14,7 @@ from common import Tmux, ToolError
 from config import runs_directory, proxy_setup, load_config
 from lease import locked, workspace_registry, session_gone, prune_dead, inspect_lease, reap
 from records import atomic_json, nonblank, read_json, save, terminal_event
-from results import FIELDS, validate_result
+from results import FIELDS, validate_result, result_template, result_instructions, report_metadata
 from snapshot import git, normalized_scope, scope_report, snapshot
 import profiles
 from observation import terminal_flags
@@ -70,13 +70,13 @@ def prepare(args):
                   readiness_required=True,
                   scope_check_exclusions=['Git-ignored untracked files', 'paths outside the worktree'],
                   opencode_enabled=args.enable_opencode, closed=False,
-                  result_path=str(run / 'result.json'))
-    example = dict(task_id=task_id, attempt_id=attempt_id, round=0,
-                   handoff=dict(STATUS='DONE', RESULT=[], EVIDENCE=[], VALIDATION=[], REMAINING_WORK=[], RISKS=[]))
+                  result_path=str(run / 'result.json'), result_contract_version=2,
+                  report_path=str(run / 'report.round0.md'))
+    example = result_template(record)
     prompt = ('Complete this bounded work package. Do not delegate, commit, stage, change branches, '
               'or modify CLI permissions. Treat allowed paths as a work contract, not sandbox enforcement. '
-              'Write only your owned paths and the run-directory result/question/ready JSON (including temporary files for atomic publication); '
-              'review/research roles may write only those control artifacts. '
+              'Write only your owned paths, the current-round report_path and the run-directory result/question/ready JSON '
+              '(including temporary files for atomic publication); review/research roles may write only those run artifacts. '
               'Before reading project materials or doing substantive work, verify the control directory is writable: '
               'atomically publish ready.json alongside prompt.txt with exactly task_id, attempt_id, round, STATUS="READY" '
               '(use the actual task identity below). This is a control artifact permitted for every role. '
@@ -88,9 +88,7 @@ def prepare(args):
               'Save a usable owned-artifact draft early and refine it, instead of only describing planned work. '
               'The execution budget is ' + str(args.budget_seconds) + ' seconds from initial submission; '
               'publish PARTIAL/BLOCKED with concrete remaining work if unable to finish. '
-              'Report real validation, and use PARTIAL/BLOCKED with concrete REMAINING_WORK if unfinished. '
-              'Each handoff array allows up to 12 nonblank strings of at most 2000 characters; '
-              'the compact handoff must be at most 8 KiB. '
+              'Report real validation. ' + result_instructions(record) +
               'Scope checks exclude the categories listed in scope_check_exclusions; the primary must '
               'independently verify any relevant excluded artifacts. '
               'Publish JSON atomically: write a temporary file in the run directory, then rename it to result_path. '
@@ -99,7 +97,7 @@ def prepare(args):
               'Do not spawn or dispatch other work processes. Follow the current round in any reply file. '
               'Write the exact JSON envelope (no extra fields) to result_path, then stop working. '
               + json.dumps({key: record[key] for key in ('task_id', 'attempt_id', 'round', 'goal', 'cwd', 'role', 'model',
-                                                       'owned_paths', 'acceptance', 'result_path',
+                                                       'owned_paths', 'acceptance', 'result_path', 'report_path',
                                                        'scope_check_exclusions')}, ensure_ascii=True)
               + ' Result envelope template: ' + json.dumps(example, ensure_ascii=True))
     if len(prompt.encode('utf-8')) > 32768:
@@ -275,10 +273,11 @@ def collect(run, record):
     if report['scope_violations'] or report['git_state_changed']:
         raise ToolError('scope check failed: ' + json.dumps(report, ensure_ascii=True))
     status = value['handoff']['STATUS']
+    attachment = report_metadata(record)
     record.update(state={'DONE': 'awaiting_acceptance', 'PARTIAL': 'partial', 'BLOCKED': 'blocked'}[status],
-                  result=value, scope=report, collected_snapshot=current)
+                  result=value, scope=report, collected_snapshot=current, collected_report=attachment)
     save(run, record)
-    return dict(state=record['state'], result=value, scope=report)
+    return dict(state=record['state'], result=value, scope=report, report=attachment)
 
 
 def accept(run, record, evidence):
@@ -286,11 +285,15 @@ def accept(run, record, evidence):
     if record['state'] != 'awaiting_acceptance':
         raise ToolError('accept requires a validated DONE handoff')
     current_result = validate_result(read_json(Path(record['result_path']), 16384), record)
-    if current_result != record['result'] or snapshot(Path(record['cwd'])) != record['collected_snapshot']:
+    if (current_result != record['result'] or snapshot(Path(record['cwd'])) != record['collected_snapshot']
+            or report_metadata(record) != record.get('collected_report')):
         raise ToolError('artifacts changed since collection; collect and inspect again')
     record.update(state='accepted', acceptance_evidence=evidence, accepted_at=time.time())
     save(run, record)
-    return dict(state='accepted', evidence=evidence)
+    result = dict(state='accepted', evidence=evidence)
+    if record['role'] == 'review':
+        result.update(accepted_subject='review_report', review_verdict=current_result.get('review_verdict', 'UNSPECIFIED'))
+    return result
 
 
 def close(run, record, allow_active=False):

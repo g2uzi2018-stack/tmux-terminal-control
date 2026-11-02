@@ -19,4 +19,5 @@ validation limits with local paths replaced by placeholders.
 To publish new evidence, inspect the original report and export only these fields.
 Never copy terminal screens, credentials or raw command output into this directory.
 Keep the original locally and link the reviewed summary from the dated validation
-documents. Run deterministic tests separately from opt-in live CLI checks.
+documents. Live CLI checks are opt-in. References to test tools in historical
+summaries describe earlier runs; the repository no longer retains that test code.
