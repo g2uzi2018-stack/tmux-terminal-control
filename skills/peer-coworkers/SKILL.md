@@ -1,27 +1,18 @@
 ---
 name: peer-coworkers
-description: 通过独立 CLI/TUI 工作进程执行有界实现、测试、研究或审查，用 tmux 保留交互，由主代理核验结果。仅在用户明确要求协作或适合分包时使用；小型强耦合工作直接完成。
+description: 通过 tmux 向独立 CLI 分派有明确交付物的实现、研究、测试或审查，并由主代理独立验收。适用于能清楚划分范围的工作包。
 ---
 
 # Peer Coworkers
 
-主代理负责需求、分包、接口、集成和最终验收。先判断是否需要协作，再按任务适配能力与下述用户偏好选择 CLI/模型。工作进程不得继续分派。多写入流使用独立 worktree，通过 Git 串行集成；工具只管理一个工作包的生命周期。
+主代理划定目标、输入、写入范围和验收条件，负责集成与验收。适合拆分时积极使用 peer。小型强耦合改动直接完成，多路写入用隔离工作区。工作进程自行完成分配给它的工作。独立审查以原始要求和实际产物为输入。
 
-选择模式时读 [协作模式](references/collaboration-modes.md)。调用前读 [任务合同](references/task-contract.md) 和 [CLI 配置](references/cli-profiles.md)，运行 `python3 scripts/cowork.py doctor` 核对当前环境。存在可执行文件不代表已登录或兼容。不要自动换模型、启用默认关闭的 profile 或改变 CLI 权限。
+先用 `python3 scripts/cowork.py doctor` 核对 CLI，再按 [模型选型](references/model-selection.md) 选择 `--profile` 和需要绑定的 `--model`。模型、思考档和速度在实际会话中核对。
 
-首次派工前读 [模型能力与选型](references/model-selection.md)，优先按用户的额度偏好选择本轮可用且适合工作包的候选，简述模型、已知档位、速度、选择原因及独立性；需要偏离默认优先级时说明理由，不为凑品牌把全部候选都启动。`init` 必须显式提供 `--profile`，`--model` 只绑定本任务，不改全局默认。用户指定模型时不静默替换；Auto 或继承默认有合理理由时可用，实际身份不明则记录 unknown，不能当作已确认的模型多样性。
+1. `init` 指定工作区根目录、目标及验收条件。有工作区写入需求时给 `--owned-path`。
+2. `start` 后检查 `screen`，用 `paste` 放入任务说明的指针。确认输入框收到指针后，`submit --received-confirmed` 一次。启动信任与任务提交是独立操作。
+3. `wait` 观察当前交付路径及终端。检查具体权限请求，再按已有授权处理。看 [终端交互](references/terminal-control.md)。
+4. 读取 Markdown 交付。`reply --message-file` 可答疑或提出修改，工具为新交付分配独立路径。提交不明时用 `wait` 或 `collect` 查实际交付。
+5. `collect` 检查范围后，独立审阅交付和实际产物，再 `accept --evidence`、`close`。保留会话时给出 run、socket 和 pane。
 
-用户选型偏好：适合分包的小活、杂活、资料整理和局部实现优先交给 agy 的 Gemini；需要高级评审时优先考虑 Cursor 的 Grok 4.7 xhigh，使用标准速度。该优先级依据用户现有额度安排，具体模型与档位见选型参考。小型强耦合工作可由主代理直接完成，是否增加高级评审取决于任务复杂度；主代理始终负责最终验收。
-
-用户偏好：默认标准速度，只有当次明确要求才启用 Fast。模型、思考档位与速度分别核对，Gemini Flash 不等于 Fast 开关。不能只因 ID 无 fast 就宣称已关闭；检查当前会话的独立加速设置，不改持久全局配置。确认方法与未知时的处理见模型选型参考。
-
-1. 明确目标、角色、归属路径与可验证的验收条件，用 `init --profile PROFILE` 建立工作包。用户指定的 CLI/模型必须实际绑定；查到模型列表只能记为“已发现”，不能记为“已启动/已验收”。合同与范围检查不是沙箱；需要限制读取或外发时，先准备只包含允许材料的隔离环境。
-2. `start` 内置代理准备，默认自动探测交互 Bash 中的代理函数；用 `--no-proxy` 跳过准备。启动本身不粘贴、不提交、不确认信任。通过 `screen` 检查界面，再 `paste`；确认短指针实际接收后，`submit --received-confirmed` 一次。
-3. 用 `wait` 先确认 `worker_ready`（当前轮 `ready.json` 已写回），再观察交付；有效结果可直接进入收集。未就绪时先处理控制目录权限，不继续派大任务。`approval` 返回具体动作和画面指纹；核对已有授权后，用 `decision` 单次允许或拒绝，不靠裸 Enter 猜菜单。支持已识别的 agy 四项命令菜单和两项文件编辑菜单；编辑须完整显示差异并属于归属路径或当前控制文件。其他布局先读屏。及时处理待审批，避免观察空档耗尽预算；`terminal-events.json` 保留有界等待/关闭画面。静止、提示和退出不是完成。按键与多行操作见 [终端规则](references/terminal-control.md)。
-4. 问题或交付纠错通过 `reply --message-file` 回答；旧 result/question/ready 即使超长、JSON 损坏或业务校验失败，也会原样归档并附诊断，不阻断纠错。每次递增 round，默认最多两次；预算与审批限制仍生效。粘贴、提交或回复不明时保留 uncertain 状态，先诊断，不能重发 Enter。取消只在当前版本有通过的 probe 时发送一次 Escape，否则明确关闭。
-5. `collect` 严格校验本任务、attempt、round、六字段 handoff 与范围。DONE 表示分配的工作完成；审查发现的代码缺陷放 RESULT/RISKS，不算审查者未完成的 REMAINING_WORK。新 review 任务额外要求顶层 `review_verdict=PASS/CHANGES_REQUESTED/INCONCLUSIVE`。长报告写当前轮 `report_path`（UTF-8，最多1 MiB，临时文件加 `.tmp`），8 KiB handoff 只放摘要与引用；只读角色也可写该报告，收集及验收核对其摘要指纹。DONE 仅进入待验收；主代理独立检查实际产物、diff 和针对性测试，再 `accept --evidence`。接受审查报告不代表被审代码可交付。需要独立审查时提供原始要求与最终产物，避免灌入实现者自评。
-6. 保留交互时交付 run/socket/pane；明确结束时 `close`，活跃进程需 `--allow-active`。会话已消失时释放租约；未确认启动或损坏记录先 `reap` 检查，再决定是否对精确 task 强制回收。
-
-需要独立视角时优先选择胜任且实际身份已确认的不同模型家族；同一模型换 CLI 只增加工具/上下文差异。合理的额度、时延或任务匹配限制可支持同模型复核，但须说明独立性边界。各候选遵守相同证据标准，不按票数裁决。
-
-新任务启动预算默认300秒，执行预算从首次提交开始，识别到的审批等待最多另给300秒宽限；`show/wait` 报告剩余时间。不要反复等待无产物的规划：工作包应有单一可审查产物，尽早保存初稿；无法完成时交付 PARTIAL/BLOCKED。预算耗尽后停止新输入，仍可读屏、等待、收集、取消或关闭。交付说明实际角色、CLI/模型、状态、主代理验证、剩余事项和保留会话位置；模型身份未知则明示。范围检查明确排除 Git 忽略的未跟踪文件和工作区外路径；主代理另行核对有关产物。不得将假 TUI 通过写成真实 CLI 兼容。
+各命令使用同一 `--run`。交付格式、反馈和收尾见 [任务说明](references/task-contract.md)，启动配置见 [CLI 配置](references/cli-profiles.md)。

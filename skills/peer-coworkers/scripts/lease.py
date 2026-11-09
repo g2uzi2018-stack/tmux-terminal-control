@@ -90,10 +90,10 @@ def inspect_lease(path):
         record = read_json(Path(lease['run']) / 'task.json')
         if record['task_id'] != lease['task_id'] or lease['task_id'] != path.stem:
             raise ToolError('workspace registry identity mismatch')
-        required = ('task_id', 'attempt_id', 'cwd', 'state', 'role', 'closed', 'version')
+        required = ('task_id', 'cwd', 'state', 'owned_paths', 'closed', 'version')
         if (any(key not in record for key in required) or not isinstance(record['cwd'], str)
                 or not Path(record['cwd']).is_absolute() or type(record['closed']) is not bool
-                or record['role'] not in ('implement', 'test', 'research', 'review')):
+                or not isinstance(record['owned_paths'], list)):
             raise ToolError('damaged task metadata; exact forced reap required')
         gone = session_gone(record)
         status = 'gone' if gone is True else 'active' if gone is False else 'unknown'

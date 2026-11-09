@@ -12,7 +12,7 @@
 
 按用户偏好默认不用 Fast，只有当次明确要求才启用；不会因此排除 Gemini Flash 等模型。该偏好通过技能选型与会话核对执行，不是脚本硬封锁，也没有新增通用 Fast 或 effort 参数。不改持久的 CLI 全局设置。
 
-入口与依据：[SKILL.md](../skills/peer-coworkers/SKILL.md)、[模型能力与选型](../skills/peer-coworkers/references/model-selection.md)、[目录快照](../skills/peer-coworkers/references/model-inventory.json)。
+入口与依据：[SKILL.md](../skills/peer-coworkers/SKILL.md)、[模型能力与选型](../skills/peer-coworkers/references/model-selection.md)、[目录快照](evidence/model-inventory-20261021.json)。
 
 ## 验证结果
 

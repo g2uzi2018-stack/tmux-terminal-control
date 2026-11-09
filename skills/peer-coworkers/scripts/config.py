@@ -1,6 +1,7 @@
 """Bounded JSON configuration, private run directories, and explicit proxy setup."""
 import json
 import os
+import shutil
 from pathlib import Path
 import stat
 import subprocess
@@ -54,6 +55,26 @@ def load_config():
     return value
 
 
+
+def cursor_task_config(run, cwd):
+    """Keep Cursor's model/config persistence inside this task, preserving settings."""
+    configured = os.environ.get('CURSOR_CONFIG_DIR')
+    if configured and configured.strip():
+        source_dir = Path(configured)
+    elif os.environ.get('XDG_CONFIG_HOME', '').strip():
+        source_dir = Path(os.environ['XDG_CONFIG_HOME']) / 'cursor'
+    else:
+        source_dir = Path.home() / '.cursor'
+    directory = run / 'cursor-config'
+    directory.mkdir(mode=0o700)
+    source = Path(cwd) / source_dir / 'cli-config.json'
+    if source.is_file():
+        target = directory / 'cli-config.json'
+        shutil.copyfile(source, target)
+        target.chmod(0o600)
+    return str(directory)
+
+
 def root_directory(value=None):
     root = Path(value) if value else Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'peer-coworkers'
     root = root.expanduser().resolve()
@@ -74,7 +95,7 @@ def runs_directory(value=None):
     info = runs.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
         raise ToolError('runs root must be an owned private directory without symlinks')
-    return runs
+    return runs.resolve()
 
 
 def proxy_setup(proxy_url=None, no_proxy=False):

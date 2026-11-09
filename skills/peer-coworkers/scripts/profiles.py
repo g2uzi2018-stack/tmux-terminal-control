@@ -48,15 +48,24 @@ def proxy_environment(url):
                                  'http_proxy', 'https_proxy', 'all_proxy')}
 
 
-def validate_model(model):
-    if model is not None and (not isinstance(model, str) or
-            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}', model)):
+def validate_model(model, profile=None):
+    if model is None:
+        return model
+    if not isinstance(model, str) or len(model) > 200:
         raise ToolError('model must be a CLI model ID of at most 200 characters')
-    return model
+    plain = r'[A-Za-z0-9][A-Za-z0-9._:/-]*'
+    if re.fullmatch(plain, model):
+        return model
+    parameter = r'[a-z][a-z0-9_]*=[A-Za-z0-9._-]+'
+    if profile == 'cursor' and re.fullmatch(plain + r'\[' + parameter + r'(?:,' + parameter + r')*\]', model):
+        keys = [item.split('=', 1)[0] for item in model.split('[', 1)[1][:-1].split(',')]
+        if len(keys) == len(set(keys)):
+            return model
+    raise ToolError('model must be a CLI ID; only Cursor accepts bracket parameters with unique keys')
 
 
 def command(profile, enable_opencode=False, model=None):
-    model = validate_model(model if model is not None else load_config().get('profiles', {}).get(profile, {}).get('model'))
+    model = validate_model(model if model is not None else load_config().get('profiles', {}).get(profile, {}).get('model'), profile)
     if profile not in PROFILES:
         raise ToolError('unknown CLI profile')
     if not PROFILES[profile]['enabled'] and not enable_opencode:
@@ -64,6 +73,10 @@ def command(profile, enable_opencode=False, model=None):
     executable = resolve_executable(profile)
     if not executable:
         raise ToolError(profile + ' executable not found in this environment')
+    if profile == 'cursor' and model is not None and '[' in model:
+        help_result = subprocess.run([executable, '--help'], capture_output=True, text=True, timeout=5)
+        if help_result.returncode or 'Parameterized models' not in help_result.stdout or 'fast=false' not in help_result.stdout:
+            raise ToolError('current Cursor CLI does not advertise parameterized --model support')
     selected = ['--model', model] if model is not None else []
     return [executable, *PROFILES[profile]['args'], *selected]
 

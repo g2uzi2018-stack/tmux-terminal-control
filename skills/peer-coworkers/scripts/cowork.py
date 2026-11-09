@@ -34,30 +34,36 @@ def parser():
     init = commands.add_parser('init')
     init.add_argument('--cwd', required=True)
     init.add_argument('--goal', required=True)
-    init.add_argument('--role', choices=('implement', 'test', 'review', 'research'), required=True)
+    init.add_argument('--role', help='optional work package label')
     init.add_argument('--profile', choices=tuple(profiles.PROFILES), required=True,
                       help='CLI selected for this work package; no implicit default')
     init.add_argument('--model', help='explicit CLI model ID for this task; omitted preserves CLI defaults')
     init.add_argument('--enable-opencode', action='store_true')
     init.add_argument('--owned-path', action='append', default=[])
     init.add_argument('--acceptance', action='append', required=True)
-    init.add_argument('--budget-seconds', type=int, default=600)
+    init.add_argument('--budget-seconds', type=int, default=2700,
+                      help='execution budget in seconds (default: 2700 = 45 minutes)')
     init.add_argument('--startup-budget-seconds', type=int, default=300)
     init.add_argument('--approval-budget-seconds', type=int, default=300,
                       help='maximum observed approval waiting excluded from execution time; 0 disables grace')
     init.add_argument('--runs-dir')
-    init.add_argument('--max-replies', type=int, default=2)
-    for name in ('start', 'show', 'screen', 'paste', 'submit', 'observe', 'wait', 'decision', 'keys', 'cancel', 'reply', 'collect', 'accept', 'close'):
+    for name in ('start', 'trust', 'show', 'screen', 'paste', 'submit', 'observe', 'wait', 'decision', 'inspect-diff', 'keys', 'cancel', 'reply', 'steer', 'collect', 'accept', 'close'):
         cmd = commands.add_parser(name)
         cmd.add_argument('--run', type=Path, required=True)
-        if name == 'decision':
-            cmd.add_argument('--approval-id', required=True)
+        if name == 'trust':
             cmd.add_argument('--screen-sha256', required=True)
+            cmd.add_argument('--evidence', required=True)
+        if name in ('decision', 'inspect-diff'):
+            cmd.add_argument('--approval-id', required=True)
+        if name == 'decision':
             cmd.add_argument('--decision', choices=('allow-once', 'deny'), required=True)
             cmd.add_argument('--evidence', required=True)
         if name == 'keys':
             from common import KEYS
             cmd.add_argument('--key', choices=sorted(KEYS), action='append', required=True)
+        if name == 'steer':
+            cmd.add_argument('--steer-id', required=True)
+            cmd.add_argument('--evidence', required=True)
         if name == 'reply':
             cmd.add_argument('--message-file', type=Path, required=True)
         if name == 'start':
@@ -73,6 +79,7 @@ def parser():
             cmd.add_argument('--evidence', required=True)
         if name == 'close':
             cmd.add_argument('--allow-active', action='store_true')
+            cmd.add_argument('--discard-unaccepted', action='store_true')
     term = commands.add_parser('term', help='task-bound terminal operations')
     terminal = term.add_subparsers(dest='terminal_action', required=True)
     for name in ('screen', 'history', 'status', 'paste', 'submit', 'wait', 'keys'):
@@ -116,6 +123,10 @@ def main():
             run = args.run.expanduser().resolve(strict=True)
             with tasks.locked(run):
                 record = tasks.read_json(run / 'task.json')
+                if record.get('version', 1) < 3 and args.action not in ('show', 'collect'):
+                    raise ToolError('legacy run; use its original tool version for lifecycle commands')
+                if record.get('version', 1) < 3 and not record['closed'] and args.action == 'collect':
+                    raise ToolError('active legacy run; collect with its original tool version')
                 if args.action == 'show':
                     result = {key: value for key, value in record.items()
                               if key not in ('baseline', 'collected_snapshot')}
@@ -130,7 +141,9 @@ def main():
                     result = dict(dead=dead, exit_code=code or None)
                 elif args.action == 'screen':
                     tasks.check_session(record)
-                    result = dict(screen=Tmux(record['socket']).capture(record['pane']))
+                    from approvals import screen_hash
+                    screen = Tmux(record['socket']).capture(record['pane'])
+                    result = dict(screen=screen, screen_sha256=screen_hash(screen))
                 elif args.action == 'start':
                     result = tasks.start(run, record, args.proxy_url, args.no_proxy)
                 elif args.action == 'paste':
@@ -138,23 +151,30 @@ def main():
                 elif args.action in ('submit', 'observe'):
                     result = tasks.observe(run, record, args.action == 'submit',
                                      getattr(args, 'received_confirmed', False), args.timeout_ms)
+                elif args.action == 'trust':
+                    result = interactions.trust_workspace(run, record, args.screen_sha256, args.evidence)
                 elif args.action == 'keys':
                     result = interactions.keys(run, record, args.key)
                 elif args.action == 'decision':
                     from approvals import decide
-                    result = decide(run, record, args.approval_id, args.screen_sha256, args.decision, args.evidence)
+                    result = decide(run, record, args.approval_id, args.decision, args.evidence)
+                elif args.action == 'inspect-diff':
+                    from approvals import inspect_diff
+                    result = inspect_diff(run, record, args.approval_id)
                 elif args.action == 'cancel':
                     result = interactions.cancel(run, record, args.timeout_ms)
                 elif args.action == 'reply':
                     result = interactions.reply(run, record, args.message_file)
+                elif args.action == 'steer':
+                    result = interactions.steer_reply(run, record, args.steer_id, args.evidence)
                 elif args.action == 'wait':
-                    result = wait_event(run, record, args.timeout_ms, verify_session=True)
+                    result = wait_event(run, record, args.timeout_ms)
                 elif args.action == 'collect':
                     result = tasks.collect(run, record)
                 elif args.action == 'accept':
                     result = tasks.accept(run, record, args.evidence)
                 else:
-                    result = tasks.close(run, record, args.allow_active)
+                    result = tasks.close(run, record, args.allow_active, args.discard_unaccepted)
         print(json.dumps(result, ensure_ascii=True))
         return 0
     except (ToolError, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:

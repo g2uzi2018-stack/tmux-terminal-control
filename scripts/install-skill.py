@@ -2,12 +2,23 @@
 """Install a standalone peer-coworkers package without changing global CLI configuration."""
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
 import uuid
+
+
+def package_sha256(directory):
+    digest = hashlib.sha256()
+    for path in sorted(directory.rglob('*'), key=lambda item: item.as_posix()):
+        if path.is_file():
+            relative = path.relative_to(directory).as_posix().encode('utf-8', 'surrogateescape')
+            digest.update(relative + b'\0')
+            digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
 
 
 def install(destination):
@@ -25,10 +36,12 @@ def install(destination):
         required = ['LICENSE', 'NOTICE', 'SKILL.md', 'scripts/cowork.py', 'scripts/common.py', 'scripts/session.py',
                     'scripts/input.py', 'scripts/wait.py', 'scripts/profiles.py',
                     *['scripts/' + name + '.py' for name in ('tasks', 'config', 'lease', 'records',
-                      'results', 'snapshot', 'observation', 'interactions', 'capabilities', 'probe', 'approvals', 'timing')]]
+                      'results', 'snapshot', 'observation', 'interactions', 'followups',
+                      'capabilities', 'probe', 'approvals', 'timing')]]
         for name in required:
             if not (staging / name).is_file():
                 raise RuntimeError('missing package file: ' + name)
+        fingerprint = package_sha256(staging)
         if destination.exists() or destination.is_symlink():
             backups = destination.parent / '.peer-coworkers-backups'
             backups.mkdir(exist_ok=True)
@@ -43,7 +56,7 @@ def install(destination):
         legacy = destination.parent / 'tmux-tui'
         if legacy.exists():
             print('Notice: legacy tmux-tui directory preserved: ' + str(legacy))
-        return destination, backup
+        return destination, backup, fingerprint
     finally:
         if staging.exists():
             shutil.rmtree(staging)
@@ -54,8 +67,9 @@ def main():
     parser.add_argument('--dest', type=Path, default=Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex') / 'skills' / 'peer-coworkers')
     args = parser.parse_args()
     try:
-        destination, backup = install(args.dest)
+        destination, backup, fingerprint = install(args.dest)
         print('Installed: ' + str(destination))
+        print('Package SHA-256: ' + fingerprint)
         if backup:
             print('Previous installation backed up: ' + str(backup))
         print('Available on the next turn. Global config was preserved.')

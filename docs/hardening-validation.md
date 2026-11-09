@@ -1,5 +1,9 @@
 # Hardening validation — 2026-10-18
 
+## Lifecycle simplification — 2026-11-09
+
+See the [release and validation record](evidence/peer-simplification-20261109.md).
+
 ## Test-code removal — 2026-11-02
 
 At the user's request, all 23 tracked files under `tests/` were removed,

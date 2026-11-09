@@ -128,14 +128,16 @@ def normalized_scope(cwd, value):
 
 
 
+def within_scope(path, owned_paths):
+    return any(scope == '.' or path == scope or path.startswith(scope + '/') for scope in owned_paths)
+
+
 def scope_report(record):
     baseline = record['baseline']
     current = snapshot(Path(record['cwd']), previous=baseline)
     changed = sorted(path for path in baseline['files'].keys() | current['files'].keys()
                      if baseline['files'].get(path) != current['files'].get(path))
-    owned = record['owned_paths']
-    violations = [path for path in changed if not any(
-        scope == '.' or path == scope or path.startswith(scope + '/') for scope in owned)]
+    violations = [path for path in changed if not within_scope(path, record['owned_paths'])]
     git_changed = any(baseline[field] != current[field] for field in ('head', 'branch', 'index'))
     return dict(changed_paths=changed, scope_violations=violations,
                 git_state_changed=git_changed,

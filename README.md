@@ -9,17 +9,15 @@ python3 scripts/install-skill.py
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" doctor
 ```
 
-The installer copies ordinary files, backs up an existing installation, and preserves CLI configuration. It only reports an old sibling skill directory; removal of an existing user installation is manual. Native Windows execution is not supported; run the scripts and CLI together inside WSL.
+The installer copies ordinary files, backs up an existing installation, preserves CLI configuration, and prints a SHA-256 fingerprint for the installed package. It only reports an old sibling skill directory; removal of an existing user installation is manual. Native Windows execution is not supported; run the scripts and CLI together inside WSL.
 
 Codex, agy and Cursor Agent CLI have sandbox-preserving launch profiles. OpenCode requires explicit opt-in and is never a fallback. Executable availability does not establish authentication or compatibility.
 
-Choose the CLI/model deliberately for each work package and pass `init --profile PROFILE` explicitly. Compare reasonable candidates rather than defaulting every role to one provider. Prefer a suitable different model family for independent review; actual artifacts and validation determine acceptance. See [model selection](skills/peer-coworkers/references/model-selection.md) and the dated [selection validation](docs/model-selection-validation.md).
-
-The user's default is standard speed: enable Fast only when explicitly requested for that task. Model, reasoning effort and speed are separate choices; Gemini Flash is a model family, not the Fast setting. Check the actual session configuration and report unknown values instead of assuming. Task commands do not change persistent global CLI defaults.
+Choose the profile and requested model for each work package. Verify model, reasoning effort and speed in the active session. See [model selection](skills/peer-coworkers/references/model-selection.md).
 
 Start with the [quick start](docs/quick-start.md). See the [command reference](docs/commands.md), [state machine](docs/state-machine.md), [scope and risk boundaries](docs/boundaries.md), [configuration example](config.example.json), and [contribution guide](CONTRIBUTING.md).
 
-Invalid result files remain correctable through `reply`: their original bytes are archived while collection and acceptance stay strict. Review completion and code verdict are separate; long reports use a permitted per-round file with a digest checked at acceptance. See the [result and recovery contract](skills/peer-coworkers/references/task-contract.md).
+Workers deliver a Markdown handoff for implementation, research, testing or review. Feedback assigns a new handoff path and keeps earlier files available. See the [work package contract](skills/peer-coworkers/references/task-contract.md).
 
 The repository does not retain test source code or fixtures. Runtime compatibility probes remain available through the `probe` command and are opt-in. Historical results and limitations are dated in [hardening validation](docs/hardening-validation.md) and [CLI profiles](docs/cli-profiles.md). [Reviewed evidence summaries](docs/evidence/README.md) are committed; raw screens and machine-specific history stay in ignored [local records](docs/local/README.md).
 

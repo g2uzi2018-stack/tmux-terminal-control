@@ -46,12 +46,16 @@ def read_bytes(path, limit, limit_error='file exceeds byte limit'):
     return data
 
 
-def read_json(path, limit=None):
+def read_json_bytes(path, limit=None):
     task_record = limit is None
     limit = record_limit() if task_record else limit
     data = read_bytes(path, limit, 'task record exceeds snapshot.max_record_bytes; adjust it in config.json'
                       if task_record else 'JSON exceeds byte limit')
-    return json.loads(data.decode('utf-8'), object_pairs_hook=no_duplicates)
+    return data
+
+
+def read_json(path, limit=None):
+    return json.loads(read_json_bytes(path, limit).decode('utf-8'), object_pairs_hook=no_duplicates)
 
 
 
@@ -76,6 +80,18 @@ def save(run, record):
     atomic_json(run / 'task.json', record, limit=record_limit())
 
 
+def reconcile_submission(run, record, handoff):
+    """A handoff at the current unique path resolves input uncertainty without a resend."""
+    if record['closed'] or record['state'] not in ('submit_uncertain', 'reply_uncertain'):
+        return None
+    entry = dict(action='reconcile_submission', at=time.time(), from_state=record['state'],
+                 result_path=handoff['path'])
+    record.setdefault('interventions', []).append(entry)
+    record['state'] = 'running'
+    save(run, record)
+    return entry
+
+
 def terminal_event(run, record, reason, screen):
     """Keep a bounded local replay of observations, including the closing screen."""
     try:
@@ -97,8 +113,7 @@ def _terminal_event(run, record, reason, screen):
     if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
         raise ToolError('terminal event history must be a list of records')
     data = screen.encode('utf-8')
-    event = dict(task_id=record['task_id'], attempt_id=record['attempt_id'],
-                 round=record['round'], reason=reason,
+    event = dict(task_id=record['task_id'], result_path=record['result_path'], reason=reason,
                  screen=data[-32768:].decode('utf-8', 'ignore'),
                  screen_truncated=len(data) > 32768)
     if events and all(events[-1].get(key) == value for key, value in event.items()):

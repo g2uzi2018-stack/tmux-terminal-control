@@ -11,10 +11,10 @@ from types import SimpleNamespace
 import uuid
 
 from common import Tmux, ToolError
-from config import runs_directory, proxy_setup, load_config
+from config import runs_directory, proxy_setup, load_config, cursor_task_config
 from lease import locked, workspace_registry, session_gone, prune_dead, inspect_lease, reap
 from records import atomic_json, nonblank, read_json, save, terminal_event
-from results import FIELDS, validate_result, result_template, result_instructions, report_metadata
+from results import HANDOFF_ERRORS, handoff_instructions, historical_result, read_handoff
 from snapshot import git, normalized_scope, scope_report, snapshot
 import profiles
 from observation import terminal_flags
@@ -31,23 +31,15 @@ def prepare(args):
         raise ToolError('cwd must be the Git worktree root')
     if args.profile == 'opencode' and not args.enable_opencode:
         raise ToolError('OpenCode is compatibility-only; explicit --enable-opencode is required')
-    model = getattr(args, 'model', None)
+    model = args.model
     if model is None:
         model = load_config().get('profiles', {}).get(args.profile, {}).get('model')
-    model = profiles.validate_model(model)
-    if type(getattr(args, 'max_replies', 2)) is not int or getattr(args, 'max_replies', 2) < 0:
-        raise ToolError('max_replies must be a nonnegative integer')
+    model = profiles.validate_model(model, args.profile)
     if args.budget_seconds <= 0:
         raise ToolError('budget must be positive')
-    for name, default in (('startup_budget_seconds', 300), ('approval_budget_seconds', 300)):
-        value = getattr(args, name, default)
-        if type(value) is not int or value < (1 if name == 'startup_budget_seconds' else 0):
-            raise ToolError(name + ' must be a valid nonnegative budget (startup must be positive)')
+    if args.startup_budget_seconds <= 0 or args.approval_budget_seconds < 0:
+        raise ToolError('startup budget must be positive and approval grace cannot be negative')
     owned = [normalized_scope(cwd, path) for path in args.owned_path]
-    if args.role in ('review', 'research') and owned:
-        raise ToolError('read-only roles cannot own write paths')
-    if args.role in ('implement', 'test') and not owned:
-        raise ToolError('write roles require --owned-path')
     for item in (args.goal, *args.acceptance):
         nonblank(item, 'goal/acceptance')
     baseline = snapshot(cwd)
@@ -58,50 +50,28 @@ def prepare(args):
         pass
     else:
         raise ToolError('runs directory must be outside the worktree')
-    task_id, attempt_id = 'task-' + uuid.uuid4().hex, uuid.uuid4().hex
+    task_id = 'task-' + uuid.uuid4().hex
     run = root / task_id
-    run.mkdir(mode=0o700)
-    record = dict(version=2, round=0, reply_count=0, max_replies=getattr(args, 'max_replies', 2), interventions=[], task_id=task_id, attempt_id=attempt_id, goal=args.goal,
-                  cwd=str(cwd), role=args.role, profile=args.profile, model=model, owned_paths=owned,
+    handoff = run / 'handoff.md'
+    record = dict(version=3, task_id=task_id, goal=args.goal, cwd=str(cwd),
+                  role=args.role, profile=args.profile, model=model, owned_paths=owned,
                   acceptance=args.acceptance, baseline=baseline, state='prepared',
                   budget_seconds=args.budget_seconds, created_at=time.time(),
-                  budget_origin='submission', startup_budget_seconds=getattr(args, 'startup_budget_seconds', 300),
-                  approval_budget_seconds=getattr(args, 'approval_budget_seconds', 300),
-                  readiness_required=True,
+                  budget_origin='submission', startup_budget_seconds=args.startup_budget_seconds,
+                  approval_budget_seconds=args.approval_budget_seconds,
                   scope_check_exclusions=['Git-ignored untracked files', 'paths outside the worktree'],
-                  opencode_enabled=args.enable_opencode, closed=False,
-                  result_path=str(run / 'result.json'), result_contract_version=2,
-                  report_path=str(run / 'report.round0.md'))
-    example = result_template(record)
-    prompt = ('Complete this bounded work package. Do not delegate, commit, stage, change branches, '
-              'or modify CLI permissions. Treat allowed paths as a work contract, not sandbox enforcement. '
-              'Write only your owned paths, the current-round report_path and the run-directory result/question/ready JSON '
-              '(including temporary files for atomic publication); review/research roles may write only those run artifacts. '
-              'Before reading project materials or doing substantive work, verify the control directory is writable: '
-              'atomically publish ready.json alongside prompt.txt with exactly task_id, attempt_id, round, STATUS="READY" '
-              '(use the actual task identity below). This is a control artifact permitted for every role. '
-              'Prefer direct file tools. If they cannot rename files atomically, a narrowly scoped local command '
-              'that only publishes this run\'s control files is permitted, subject to normal CLI approval. '
-              'Do not enumerate the run parent or create unrelated directories. '
-              'If control-file publication is refused, stop and report the exact restriction in the terminal; '
-              'do not spend the task budget planning a result that cannot be delivered. '
-              'Save a usable owned-artifact draft early and refine it, instead of only describing planned work. '
-              'The execution budget is ' + str(args.budget_seconds) + ' seconds from initial submission; '
-              'publish PARTIAL/BLOCKED with concrete remaining work if unable to finish. '
-              'Report real validation. ' + result_instructions(record) +
-              'Scope checks exclude the categories listed in scope_check_exclusions; the primary must '
-              'independently verify any relevant excluded artifacts. '
-              'Publish JSON atomically: write a temporary file in the run directory, then rename it to result_path. '
-              'For a blocking question, atomically publish question.json in the same directory with exactly '
-              'task_id, attempt_id, round, QUESTION (text), OPTIONS (array of text), BLOCKING (boolean), then wait. '
-              'Do not spawn or dispatch other work processes. Follow the current round in any reply file. '
-              'Write the exact JSON envelope (no extra fields) to result_path, then stop working. '
-              + json.dumps({key: record[key] for key in ('task_id', 'attempt_id', 'round', 'goal', 'cwd', 'role', 'model',
-                                                       'owned_paths', 'acceptance', 'result_path', 'report_path',
-                                                       'scope_check_exclusions')}, ensure_ascii=True)
-              + ' Result envelope template: ' + json.dumps(example, ensure_ascii=True))
+                  opencode_enabled=args.enable_opencode, closed=False, result_path=str(handoff))
+    acceptance = '\n'.join('- ' + item for item in args.acceptance)
+    paths = ', '.join(owned) or 'none'
+    prompt = (f'# Task\n\n{args.goal}\n\n## Acceptance criteria\n\n{acceptance}\n\n'
+              f'Workspace is {cwd}. Writable workspace paths are {paths}. '
+              'The handoff and its temporary file are also writable. Keep existing CLI permissions, '
+              'leave Git staging and commits to the primary, and do the work yourself.\n\n'
+              f'Work budget is {args.budget_seconds} seconds from submission.\n\n'
+              + handoff_instructions(handoff) + '\n')
     if len(prompt.encode('utf-8')) > 32768:
         raise ToolError('task prompt exceeds 32 KiB')
+    run.mkdir(mode=0o700)
     (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
     (run / 'prompt.txt').chmod(0o600)
     save(run, record)
@@ -172,12 +142,12 @@ def start(run, record, proxy_url=None, no_proxy=False):
                 continue
             if other['task_id'] == record['task_id']:
                 continue
-            if (record['role'] in ('implement', 'test') or other['role'] in ('implement', 'test')):
+            if record['owned_paths'] or other['owned_paths']:
                 raise ToolError('workspace already has a live writer/reader; close it or use an isolated worktree')
         # Capture immediately before launching, rather than when the task was planned.
         record['baseline'] = snapshot(Path(record['cwd']))
         record.update(state='launch_uncertain', command=command, started_at=time.time(),
-                      socket='ai-tui-' + record['attempt_id'], session='cli',
+                      socket='ai-tui-' + record['task_id'][5:], session='cli',
                       proxy_url=proxy_url, proxy=proxy,
                       workspace_lease=str(registry / (record['task_id'] + '.json')))
         record['cli_version'] = profiles.version(record['profile'])
@@ -186,6 +156,10 @@ def start(run, record, proxy_url=None, no_proxy=False):
         record['cli_capabilities'] = {key: compatibility[key] for key in ('version_matches', 'warning', 'passed', 'failed')}
         save(run, record)
         atomic_json(Path(record['workspace_lease']), dict(run=str(run), task_id=record['task_id']))
+        if record['profile'] == 'cursor':
+            record['cursor_config_dir'] = cursor_task_config(run, record['cwd'])
+            environment['CURSOR_CONFIG_DIR'] = record['cursor_config_dir']
+            save(run, record)
         with launch_environment(environment):
             result = session.new(SimpleNamespace(socket=record['socket'], task=record['task_id'],
                                  cwd=record['cwd'], session='cli', command=command,
@@ -216,8 +190,7 @@ def paste(run, record, evidence=None):
     # The complete contract remains in a private, task-specific UTF-8 file.
     prompt = ('Read the complete bounded work package at '
               + json.dumps(str(run / 'prompt.txt'), ensure_ascii=False)
-              + '. Follow that contract, write only the permitted artifacts and its result_path, '
-              'do not delegate or change permissions, then stop.').encode('utf-8')
+              + ' and follow its instructions.').encode('utf-8')
     if (b'\n' in prompt or b'\r' in prompt) and not (evidence or '').strip():
         raise ToolError('multiline requires verified CLI/version/interface evidence')
     record['state'] = 'paste_uncertain'
@@ -248,13 +221,28 @@ def observe(run, record, submit=False, confirmed=False, timeout_ms=20000):
         if record.get('budget_origin') == 'submission':
             record['execution_started_at'] = time.time()
         record['state'] = 'submit_uncertain'
+        attempt = dict(action='submit', status='uncertain', initial_state='submit_uncertain',
+                       at=time.time(), execution_started_at=record.get('execution_started_at'))
+        record.setdefault('interventions', []).append(attempt)
         save(run, record)  # A crash or failed tmux call must never enable an automatic second Enter.
     flags = ['--received-confirmed'] if submit else []
-    result = run_script('wait.py', mode, '--socket', record['socket'], '--pane', record['pane'],
-                        '--timeout-ms', str(timeout_ms), '--shell-timeout-ms', '30000',
-                        *terminal_flags(record['profile']), *flags)
+    try:
+        result = run_script('wait.py', mode, '--socket', record['socket'], '--pane', record['pane'],
+                            '--timeout-ms', str(timeout_ms), '--shell-timeout-ms', '30000',
+                            *terminal_flags(record['profile']), *flags)
+    except (OSError, subprocess.TimeoutExpired, ToolError) as exc:
+        if submit:
+            attempt['diagnostic'] = str(exc)[:1000]
+            save(run, record)
+        raise
     if result.returncode not in (0, 3):
-        raise ToolError(result.stderr.decode('utf-8', 'replace').strip() or 'wait failed; inspect submission')
+        diagnostic = result.stderr.decode('utf-8', 'replace').strip() or 'wait failed; inspect submission'
+        if submit:
+            attempt.update(returncode=result.returncode, diagnostic=diagnostic[:1000])
+            save(run, record)
+        raise ToolError(diagnostic)
+    if submit:
+        attempt['status'] = 'submitted'
     record['state'] = 'running'
     record['last_observation'] = result.stdout.decode('utf-8', 'replace').splitlines()[0]
     screen = result.stdout.decode('utf-8', 'replace').partition('\n')[2]
@@ -266,37 +254,64 @@ def observe(run, record, submit=False, confirmed=False, timeout_ms=20000):
 
 
 def collect(run, record):
-    if record['state'] not in ('running', 'awaiting_reply', 'reply_uncertain', 'submit_uncertain', 'awaiting_acceptance', 'partial', 'blocked'):
+    if record['closed']:
+        if record.get('version', 1) < 3:
+            return dict(state=record['state'], result=historical_result(record),
+                        scope=record.get('scope'), report=record.get('collected_report'))
+        result = record.get('result')
+        if not result or result['path'] != record['result_path']:
+            result = read_handoff(record['result_path'])
+        return dict(state=record['state'], result=result, scope=record.get('scope'))
+    if record['state'] not in ('running', 'reply_uncertain', 'submit_uncertain',
+                                'awaiting_acceptance', 'partial', 'blocked', 'cancelling', 'cancelled'):
         raise ToolError('collect requires a submitted task')
-    value = validate_result(read_json(Path(record['result_path']), 16384), record)
+    from records import reconcile_submission
+    value = read_handoff(record['result_path'])
+    reconcile_submission(run, record, value)
     report, current = scope_report(record)
     if report['scope_violations'] or report['git_state_changed']:
         raise ToolError('scope check failed: ' + json.dumps(report, ensure_ascii=True))
-    status = value['handoff']['STATUS']
-    attachment = report_metadata(record)
-    record.update(state={'DONE': 'awaiting_acceptance', 'PARTIAL': 'partial', 'BLOCKED': 'blocked'}[status],
-                  result=value, scope=report, collected_snapshot=current, collected_report=attachment)
-    save(run, record)
-    return dict(state=record['state'], result=value, scope=report, report=attachment)
+    if value['status'] != 'QUESTION':
+        record.update(state={'DONE': 'awaiting_acceptance', 'PARTIAL': 'partial', 'BLOCKED': 'blocked'}[value['status']],
+                      result=value, scope=report, collected_snapshot=current)
+        save(run, record)
+    return dict(state=record['state'], result=value, scope=report)
 
 
 def accept(run, record, evidence):
     nonblank(evidence, 'independent acceptance evidence')
-    if record['state'] != 'awaiting_acceptance':
-        raise ToolError('accept requires a validated DONE handoff')
-    current_result = validate_result(read_json(Path(record['result_path']), 16384), record)
-    if (current_result != record['result'] or snapshot(Path(record['cwd'])) != record['collected_snapshot']
-            or report_metadata(record) != record.get('collected_report')):
+    if record['closed'] or record['state'] != 'awaiting_acceptance':
+        raise ToolError('accept requires a collected DONE handoff')
+    if (read_handoff(record['result_path']) != record['result']
+            or snapshot(Path(record['cwd'])) != record['collected_snapshot']):
         raise ToolError('artifacts changed since collection; collect and inspect again')
     record.update(state='accepted', acceptance_evidence=evidence, accepted_at=time.time())
     save(run, record)
-    result = dict(state='accepted', evidence=evidence)
-    if record['role'] == 'review':
-        result.update(accepted_subject='review_report', review_verdict=current_result.get('review_verdict', 'UNSPECIFIED'))
-    return result
+    return dict(state='accepted', evidence=evidence)
 
 
-def close(run, record, allow_active=False):
+def unaccepted_done(record):
+    """Protect DONE handoffs until a replacement is collected or work is discarded."""
+    if record['state'] == 'accepted':
+        return False
+    collected = record.get('result', {})
+    paths = [record['result_path']]
+    paths.extend(item['previous_handoff'] for item in reversed(record.get('interventions', []))
+                 if item['action'] == 'reply')
+    for path in paths:
+        if path == collected.get('path') and collected['status'] == 'DONE':
+            return True
+        try:
+            if read_handoff(path)['status'] == 'DONE':
+                return True
+        except HANDOFF_ERRORS:
+            pass
+        if path == collected.get('path'):
+            break
+    return False
+
+
+def close(run, record, allow_active=False, discard_unaccepted=False):
     lease = Path(record['workspace_lease']) if record.get('workspace_lease') else None
     result, gone = None, False
     # Acquire before killing the session. Contention leaves the task intact and retryable.
@@ -304,12 +319,16 @@ def close(run, record, allow_active=False):
         if lease and lease.exists() and read_json(lease, 16384)['task_id'] != record['task_id']:
             raise ToolError('refusing to release another task workspace lease')
         if not record['closed']:
+            unaccepted = unaccepted_done(record)
+            if unaccepted and not discard_unaccepted:
+                raise ToolError('unaccepted DONE handoff; collect and accept the current handoff, or explicitly --discard-unaccepted')
             if 'socket' not in record or 'pane' not in record:
                 raise ToolError('no confirmed session to clean; inspect any launch_uncertain socket manually')
             gone = session_gone(record)
             if gone:
                 result = prune_dead(record)
-                record['state'] = 'closed'
+                if record['state'] not in TERMINAL:
+                    record['state'] = 'closed'
             else:
                 check_session(record)
                 # Preserve the actual final wait before destroying this exact session.
@@ -321,9 +340,15 @@ def close(run, record, allow_active=False):
                     terminal_event(run, record, 'close', screen)
                 result = session.cleanup(SimpleNamespace(socket=record['socket'], session=record['session'],
                                           task=record['task_id'], allow_active=allow_active))
+            # The worker may have written a handoff while its session was closing.
+            unaccepted = unaccepted_done(record)
+            if unaccepted and not discard_unaccepted:
+                raise ToolError('session ended while a DONE handoff arrived; collect and accept before closing the run')
             if record['state'] not in TERMINAL | {'closed'}:
                 record['state'] = 'cancelled'
             record['closed'] = True
+            if unaccepted:
+                record.update(state='cancelled', discarded_unaccepted=True)
             from timing import finish_approval
             finish_approval(record, 'closed')
             save(run, record)
