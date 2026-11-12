@@ -79,6 +79,9 @@ def prepare(args):
 
 
 def check_session(record, deadline=None):
+    if not all(record.get(key) for key in ('socket', 'session', 'pane')):
+        raise ToolError('task has no confirmed terminal session (state=' + record['state']
+                        + '); use show to inspect startup before further terminal operations')
     tmux = Tmux(record['socket'], deadline)
     # Resolve to a session ID: tmux 3.4 display-message does not resolve =name
     # consistently with list-panes, even though it returns a zero exit status.
@@ -128,7 +131,7 @@ def start(run, record, proxy_url=None, no_proxy=False):
     command = profiles.command(record['profile'], record['opencode_enabled'], model=record.get('model'))
     registry = workspace_registry(record['cwd'])
     reclaimed = []
-    with locked(registry):
+    with locked(registry, timeout=30):
         for candidate in registry.glob('*.json'):
             item, other = inspect_lease(candidate)
             if item['status'] == 'unknown':

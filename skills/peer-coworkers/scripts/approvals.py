@@ -135,14 +135,16 @@ def command_dialog(profile, screen):
                 decisions=['allow-once', 'deny'] if visible else ['deny'])
 
 
-def agy_returned_command_matches(expanded, menu):
-    """Match numbered preview rows to the reviewed logical command lines."""
+def agy_returned_command_matches(expanded, menu, original_menu=None):
+    """Check the preview prefix and, when recorded, the exact pre-expansion card."""
+    if original_menu is not None and menu != dict(original_menu, selected=menu['selected']):
+        return False
     rows = menu['command_rows']
     logical_lines = expanded['command'].split('\n')
     marker = re.fullmatch(r'   ⋯ \(([1-9][0-9]*) lines? hidden\)', rows[-1])
     if marker:
         rows = rows[:-1]
-        if expanded['command_fully_visible']:
+        if expanded['command_fully_visible'] and original_menu is None:
             hidden = int(marker[1])
             if hidden >= len(logical_lines):
                 return False
@@ -152,7 +154,7 @@ def agy_returned_command_matches(expanded, menu):
     row = 0
     for logical in logical_lines:
         if row == len(rows):
-            return bool(rows) and bool(marker) and not expanded['command_fully_visible']
+            return bool(rows) and bool(marker) and (original_menu is not None or not expanded['command_fully_visible'])
         # tmux captures agy's blank logical line without the display padding.
         if rows[row] == logical == '':
             row += 1
@@ -307,18 +309,33 @@ def observe_approval(record, screen, configured=False):
             finish_approval(record, 'screen_changed')
         return None
     pending = record.get('pending_approval')
-    # A changing footer cannot rearm an uncertain submission. Require evidence
-    # that the dialog has gone away before recognizing another decision.
+    # An explicit cancellation followed by a different, complete command card
+    # can establish a new approval. Keep the original uncertain attempt intact.
     if pending and pending['status'] == 'uncertain':
-        return pending
+        attempts = [item for item in record.get('interventions', [])
+                    if item.get('action') == 'approval' and item.get('approval_id') == pending['approval_id']]
+        cancelled = attempts and any(item.get('action') == 'keys' and item.get('keys') == ['Escape']
+                                    and item.get('status') == 'sent' and item['at'] > attempts[-1]['at']
+                                    for item in record.get('interventions', []))
+        if not (cancelled and dialog and pending['dialog']['kind'] == 'agy_expanded_command'
+                and dialog['kind'] == 'agy_command' and dialog['command_fully_visible']
+                and not agy_returned_command_matches(pending['dialog'], dialog, pending.get('original_menu'))):
+            return pending
     if (pending and pending['status'] == 'submitted' and dialog
             and same_operation(pending['dialog'], dialog)):
         return pending
     dialog = dialog or dict(kind='configured_pattern', decisions=[])
     if not pending or pending['status'] != 'waiting' or pending['dialog'] != dialog:
+        original_menu = None
+        if (pending and pending['status'] == 'waiting' and pending['dialog']['kind'] == 'agy_command'
+                and dialog['kind'] == 'agy_expanded_command'
+                and agy_returned_command_matches(dialog, pending['dialog'], pending['dialog'])):
+            original_menu = pending['dialog']
         finish_approval(record, 'screen_changed')
         pending = dict(approval_id=uuid.uuid4().hex, screen_sha256=screen_hash(screen),
                        observed_at=time.time(), status='waiting', dialog=dialog)
+        if original_menu is not None:
+            pending['original_menu'] = original_menu
         record['pending_approval'] = pending
     return pending
 
@@ -459,7 +476,7 @@ def decide(run, record, approval_id, decision, evidence):
             before = tmux.capture(record['pane'])
             menu = command_dialog(record['profile'], before)
             if menu and menu['kind'] == 'agy_command':
-                if not agy_returned_command_matches(dialog, menu):
+                if not agy_returned_command_matches(dialog, menu, pending.get('original_menu')):
                     raise ToolError('command changed after expanded inspection; decision remains uncertain')
                 dialog = menu
                 break
@@ -477,7 +494,7 @@ def decide(run, record, approval_id, decision, evidence):
         current_dialog = approval_dialog(record['profile'], current)
         if current_dialog and current_dialog['selected'] == target:
             if expanded_review and (current_dialog['kind'] != 'agy_command'
-                                    or not agy_returned_command_matches(expanded_review, current_dialog)):
+                                    or not agy_returned_command_matches(expanded_review, current_dialog, pending.get('original_menu'))):
                 raise ToolError('reviewed command changed during navigation; decision remains uncertain')
             if current_dialog != dict(dialog, selected=target):
                 raise ToolError('approval content changed during navigation; decision remains uncertain')
@@ -492,6 +509,7 @@ def decide(run, record, approval_id, decision, evidence):
             check_edit_scope(record, current_dialog['path'])
     within_budget(record)
     send_submit(tmux, record['pane'], 'Enter', True)
+    pending['dialog'] = current_dialog
     pending['status'] = 'submitted'
     entry['status'] = 'submitted'
     save(run, record)

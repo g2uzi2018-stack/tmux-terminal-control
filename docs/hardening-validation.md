@@ -1,5 +1,13 @@
 # Hardening validation — 2026-10-18
 
+## Expanded command approval — 2026-11-12
+
+See the [agy approval and cancellation recovery record](evidence/agy-expanded-approval-20261112.md).
+
+## Concurrent startup — 2026-11-11
+
+See the [startup lock recovery record](evidence/peer-start-lock-20261111.md).
+
 ## Lifecycle simplification — 2026-11-09
 
 See the [release and validation record](evidence/peer-simplification-20261109.md).

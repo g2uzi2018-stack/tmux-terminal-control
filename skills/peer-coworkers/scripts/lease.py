@@ -22,9 +22,10 @@ def locked(directory, timeout=2.0):
             try:
                 fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
-            except BlockingIOError:
+            except BlockingIOError as exc:
                 if time.monotonic() >= deadline:
-                    raise
+                    raise ToolError('timed out waiting for operation lock at ' + str(directory)
+                                    + '; wait for the current command to finish, then inspect task state before retrying') from exc
                 time.sleep(min(0.025, max(0, deadline - time.monotonic())))
         try:
             yield
