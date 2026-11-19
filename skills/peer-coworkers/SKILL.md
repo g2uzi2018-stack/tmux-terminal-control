@@ -9,6 +9,8 @@ description: 通过 tmux 向独立 CLI 分派有明确交付物的实现、研�
 
 先用 `python3 scripts/cowork.py doctor` 核对 CLI，再按 [模型选型](references/model-selection.md) 选择 `--profile` 和需要绑定的 `--model`。模型、思考档和速度在实际会话中核对。
 
+用户升级 agy 订阅后的默认分工为 Argon 与负责调研的主代理商议方案，双方未达成一致时请 Claude Opus 5.5 参与讨论，实现优先交给 Hydrogen。具体模型 ID 与档位见模型选型。
+
 1. `init` 指定工作区根目录、目标及验收条件。有工作区写入需求时给 `--owned-path`。
 2. `start` 后检查 `screen`，用 `paste` 放入任务说明的指针。确认输入框收到指针后，`submit --received-confirmed` 一次。启动信任与任务提交是独立操作。
 3. `wait` 观察当前交付路径及终端。检查具体权限请求，再按已有授权处理。看 [终端交互](references/terminal-control.md)。
