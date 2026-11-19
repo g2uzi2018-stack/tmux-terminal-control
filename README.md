@@ -1,24 +1,34 @@
 # Peer Coworkers
 
-Run a bounded work package through an independent CLI in an isolated tmux session. The primary agent chooses work, inspects changes and tests, and accepts the result. The tool manages one task at a time; it does not schedule a team or merge worktrees.
+Run bounded coding, research, testing, and review packages through headless `codex`, `agy`, and `cursor` CLIs, with per-workspace write locking and non-invasive Git tree auditing.
 
-Requires Linux/WSL, Python 3.9+, Git and tmux. Uses only the Python standard library. Install the single standalone skill:
+Requires Linux/WSL, Python 3.9+ (standard library only), and Git.
+
+## Install
 
 ```bash
 python3 scripts/install-skill.py
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" doctor
 ```
 
-The installer copies ordinary files, backs up an existing installation, preserves CLI configuration, and prints a SHA-256 fingerprint for the installed package. It only reports an old sibling skill directory; removal of an existing user installation is manual. Native Windows execution is not supported; run the scripts and CLI together inside WSL.
+The installer backs up any previous installation under `.peer-coworkers-backups/`, copies the standalone skill package without touching global CLI configuration, and preserves `LICENSE` and `NOTICE`.
 
-Codex, agy and Cursor Agent CLI have sandbox-preserving launch profiles. OpenCode requires explicit opt-in and is never a fallback. Executable availability does not establish authentication or compatibility.
+## Commands
 
-Choose the profile and requested model for each work package. Verify model, reasoning effort and speed in the active session. See [model selection](skills/peer-coworkers/references/model-selection.md).
+Run via `python3 skills/peer-coworkers/scripts/cowork.py`:
 
-Start with the [quick start](docs/quick-start.md). See the [command reference](docs/commands.md), [state machine](docs/state-machine.md), [scope and risk boundaries](docs/boundaries.md), [configuration example](config.example.json), and [contribution guide](CONTRIBUTING.md).
+| Command | Behavior |
+| --- | --- |
+| `doctor` | Check executable paths and versions for `codex`, `agy`, and `cursor` |
+| `start --cwd D --profile P [--model M] [--effort E] --task-file F [--write P]... [--name N] [--timeout S]` | Snapshot Git baseline and launch worker headlessly in the background |
+| `wait --run R [--timeout S]` | Poll `run.lock` until completion or wait timeout; return result/transcript paths and diff audit |
+| `send --run R --file F` | Resume the recorded session for round `N+1`, recording a per-round baseline tree |
+| `log --run R [--tail N]` | Show recent readable assistant/tool output from `round-N.log` |
+| `diff --run R [--round N]` | Report changed files, `outside_write_paths`, and Git HEAD/branch/index changes |
+| `stop --run R` | Terminate the runner process group (`SIGTERM`, then `SIGKILL` after 5s) |
 
-Workers deliver a Markdown handoff for implementation, research, testing or review. Feedback assigns a new handoff path and keeps earlier files available. See the [work package contract](skills/peer-coworkers/references/task-contract.md).
+## Details
 
-The repository does not retain test source code or fixtures. Runtime compatibility probes remain available through the `probe` command and are opt-in. Historical results and limitations are dated in [hardening validation](docs/hardening-validation.md) and [CLI profiles](docs/cli-profiles.md). [Reviewed evidence summaries](docs/evidence/README.md) are committed; raw screens and machine-specific history stay in ignored [local records](docs/local/README.md).
-
-[MIT license](LICENSE). Workflow attribution: [NOTICE](NOTICE).
+- **Scope and audit**: Omit `--write` for read-only tasks; repeatable `--write PATH` enables writable execution and enforces one active writable run per workspace via `fcntl.flock`. Audits use a temporary index and `runs/<id>/objects` without writing `.git/`. Submodule internals and `.gitignore`-ignored files are excluded.
+- **Model selection**: See [model selection](skills/peer-coworkers/references/model-selection.md) and [skill guide](skills/peer-coworkers/SKILL.md).
+- **Development**: See [contributing](CONTRIBUTING.md). [MIT license](LICENSE); [workflow attribution](NOTICE).

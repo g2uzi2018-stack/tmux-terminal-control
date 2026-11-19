@@ -1,20 +1,27 @@
 ---
 name: peer-coworkers
-description: 通过 tmux 向独立 CLI 分派有明确交付物的实现、研究、测试或审查，并由主代理独立验收。适用于能清楚划分范围的工作包。
+description: 无头调用独立 CLI（codex / agy / cursor）执行边界清晰的实现、研究、测试或审查，并做 Git 树事后审计。
 ---
 
 # Peer Coworkers
 
-主代理划定目标、输入、写入范围和验收条件，负责集成与验收。适合拆分时积极使用 peer。小型强耦合改动直接完成，多路写入用隔离工作区。工作进程自行完成分配给它的工作。独立审查以原始要求和实际产物为输入。
+主代理划定目标、输入、写入范围与验收标准；小型强耦合改动直接自己做。模型与分工见 [模型选型](references/model-selection.md)。
 
-先用 `python3 scripts/cowork.py doctor` 核对 CLI，再按 [模型选型](references/model-selection.md) 选择 `--profile` 和需要绑定的 `--model`。模型、思考档和速度在实际会话中核对。
+```bash
+P=scripts/cowork.py   # 已安装后为 ${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py
+python3 "$P" doctor
+python3 "$P" start --cwd "$PWD" --profile agy --model gemini-4-hydrogen-high --task-file task.md --write src [--name label]
+python3 "$P" wait --run "$RUN" [--timeout 120]
+python3 "$P" send --run "$RUN" --file reply.md
+python3 "$P" log --run "$RUN" [--tail 50]
+python3 "$P" diff --run "$RUN" [--round 1]
+python3 "$P" stop --run "$RUN"
+```
 
-用户升级 agy 订阅后的默认分工为 Argon 与负责调研的主代理商议方案，双方未达成一致时请 Claude Opus 5.5 参与讨论，实现优先交给 Hydrogen。具体模型 ID 与档位见模型选型。
+## 规则与边界
 
-1. `init` 指定工作区根目录、目标及验收条件。有工作区写入需求时给 `--owned-path`。
-2. `start` 后检查 `screen`，用 `paste` 放入任务说明的指针。确认输入框收到指针后，`submit --received-confirmed` 一次。启动信任与任务提交是独立操作。
-3. `wait` 观察当前交付路径及终端。检查具体权限请求，再按已有授权处理。看 [终端交互](references/terminal-control.md)。
-4. 读取 Markdown 交付。`reply --message-file` 可答疑或提出修改，工具为新交付分配独立路径。提交不明时用 `wait` 或 `collect` 查实际交付。
-5. `collect` 检查范围后，独立审阅交付和实际产物，再 `accept --evidence`、`close`。保留会话时给出 run、socket 和 pane。
-
-各命令使用同一 `--run`。交付格式、反馈和收尾见 [任务说明](references/task-contract.md)，启动配置见 [CLI 配置](references/cli-profiles.md)。
+- **可写与只读**：有写需求时加可重复 `--write PATH`；只读调研/审查不加 `--write`（`agy`/`cursor` 靠提示词声明只读，事后由 `wait`/`diff` 确认 `changed == []`）。
+- **并发写锁**：同一 `cwd` 同时最多一个可写任务，只读任务不限；冲突会报错并列出占用者。
+- **交付约定**：工具在 `task.md` 末尾要求最终回复以 `DONE/PARTIAL/BLOCKED/QUESTION` 开头；`result-N.md` 只含最后一条 assistant 消息，短于 200 字时会提示查看 `transcript-N.md`。
+- **任务长度**：prompt 作为单命令行参数传入（Linux 单参数上限 128 KiB）；超长上下文请写入文件并在任务中引用路径。
+- **审计范围**：基线与 diff 使用临时 index + `runs/<id>/objects`，不写入仓库 `.git/`；可检出预脏文件再次修改，不包含 submodule 内部与 `.gitignore` 忽略文件。

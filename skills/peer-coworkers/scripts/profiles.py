@@ -1,141 +1,130 @@
-"""Local CLI profiles. Availability does not establish authentication or compatibility."""
-import shutil
-import subprocess
-import re
-import time
-from urllib.parse import urlsplit
+"""Headless CLI profiles, command builders, and stream-json log parsers."""
+import json, os, shutil, subprocess
+from pathlib import Path
 
-from common import ToolError
-from config import load_config
-
-PROFILES = {
-    'codex': {'enabled': True, 'args': ['--no-alt-screen', '--sandbox', 'workspace-write']},
-    'agy': {'enabled': True, 'args': ['--sandbox']},
-    'cursor': {'enabled': True, 'args': ['--sandbox', 'enabled'],
-               'executables': ('cursor-agent', 'agent')},
-    'opencode': {'enabled': False, 'args': []},
-}
-
+PROFILES = {'codex': ('codex',), 'agy': ('agy',), 'cursor': ('cursor-agent', 'agent')}
 
 def resolve_executable(profile):
-    path = load_config().get('profiles', {}).get(profile, {}).get('path')
-    if path:
-        return shutil.which(path)
-    for name in PROFILES[profile].get('executables', (profile,)):
-        executable = shutil.which(name)
-        if executable:
-            return executable
+    if profile not in PROFILES:
+        raise RuntimeError(f'unknown profile: {profile}')
+    for name in PROFILES[profile]:
+        found = shutil.which(name) or str(Path.home() / '.local' / 'bin' / name)
+        if Path(found).is_file() and os.access(found, os.X_OK):
+            return found
     return None
 
-
-def proxy_environment(url):
-    """Validate an explicit proxy endpoint without retaining credentials in task records."""
-    if url is None:
-        return {}
-    if not isinstance(url, str):
-        raise ToolError('proxy URL must be text')
-    parsed = urlsplit(url)
-    if (parsed.scheme not in ('http', 'https') or not parsed.hostname or
-            parsed.username is not None or parsed.password is not None or
-            parsed.path not in ('', '/') or parsed.query or parsed.fragment or
-            any(char.isspace() for char in url)):
-        raise ToolError('proxy URL must be an HTTP(S) endpoint without credentials, path, or query')
-    try:
-        parsed.port
-    except ValueError as exc:
-        raise ToolError('invalid proxy port') from exc
-    return {key: url for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY',
-                                 'http_proxy', 'https_proxy', 'all_proxy')}
-
-
-def validate_model(model, profile=None):
-    if model is None:
-        return model
-    if not isinstance(model, str) or len(model) > 200:
-        raise ToolError('model must be a CLI model ID of at most 200 characters')
-    plain = r'[A-Za-z0-9][A-Za-z0-9._:/-]*'
-    if re.fullmatch(plain, model):
-        return model
-    parameter = r'[a-z][a-z0-9_]*=[A-Za-z0-9._-]+'
-    if profile == 'cursor' and re.fullmatch(plain + r'\[' + parameter + r'(?:,' + parameter + r')*\]', model):
-        keys = [item.split('=', 1)[0] for item in model.split('[', 1)[1][:-1].split(',')]
-        if len(keys) == len(set(keys)):
-            return model
-    raise ToolError('model must be a CLI ID; only Cursor accepts bracket parameters with unique keys')
-
-
-def command(profile, enable_opencode=False, model=None):
-    model = validate_model(model if model is not None else load_config().get('profiles', {}).get(profile, {}).get('model'), profile)
-    if profile not in PROFILES:
-        raise ToolError('unknown CLI profile')
-    if not PROFILES[profile]['enabled'] and not enable_opencode:
-        raise ToolError('OpenCode is compatibility-only; explicit --enable-opencode is required')
-    executable = resolve_executable(profile)
-    if not executable:
-        raise ToolError(profile + ' executable not found in this environment')
-    if profile == 'cursor' and model is not None and '[' in model:
-        help_result = subprocess.run([executable, '--help'], capture_output=True, text=True, timeout=5)
-        if help_result.returncode or 'Parameterized models' not in help_result.stdout or 'fast=false' not in help_result.stdout:
-            raise ToolError('current Cursor CLI does not advertise parameterized --model support')
-    selected = ['--model', model] if model is not None else []
-    return [executable, *PROFILES[profile]['args'], *selected]
-
-
 def doctor():
-    result = []
-    for name, profile in PROFILES.items():
-        executable = resolve_executable(name)
-        item = dict(profile=name, executable=executable, enabled=profile['enabled'],
-                    authentication='not_checked', version=None)
-        # Do not execute a compatibility-only profile, including version probes.
-        if executable and profile['enabled']:
+    out = []
+    for name in PROFILES:
+        exe, ver = resolve_executable(name), None
+        if exe:
             try:
-                process = subprocess.run([executable, '--version'], capture_output=True,
-                                         text=True, timeout=5)
-                item['version'] = process.stdout.strip()[:200] if process.returncode == 0 else None
+                p = subprocess.run([exe, '--version'], capture_output=True, text=True, timeout=5)
+                ver = p.stdout.strip().splitlines()[0][:200] if p.returncode == 0 and p.stdout.strip() else None
             except (OSError, subprocess.TimeoutExpired):
                 pass
-        result.append(item)
-    return result
+        out.append({'profile': name, 'executable': exe, 'available': bool(exe), 'version': ver})
+    return out
 
+def build_command(profile, cwd, prompt, writable, model=None, effort=None, session_id=None, result_path=None):
+    exe = resolve_executable(profile)
+    if not exe:
+        raise RuntimeError(f'{profile} CLI executable not found')
+    if profile == 'codex':
+        cmd = [exe, 'exec', '-C', str(cwd), '-s', 'workspace-write' if writable else 'read-only']
+        cmd += (['-m', model] if model else []) + (['-c', f'model_reasoning_effort={effort}'] if effort else [])
+        cmd += ['resume', session_id] if session_id else []
+        return cmd + ['--json', '-o', str(result_path), '--', prompt]
+    if profile == 'agy':
+        # Phase 0: --mode accept-edits denies Bash and --mode auto is unavailable; -p takes prompt as value.
+        cmd = [exe, '--sandbox', '--dangerously-skip-permissions', '--output-format', 'stream-json']
+        cmd += (['--model', model] if model else []) + (['--effort', effort] if effort else [])
+        return cmd + (['--conversation', session_id] if session_id else []) + [f'--print={prompt}']
+    # Phase 0: cursor --force bypasses sandbox outside workspace; -p --sandbox enabled runs tools safely.
+    if effort:
+        if not model or '[' in model:
+            raise RuntimeError('cursor --effort requires --model without bracket parameters')
+        model = f'{model}[effort={effort}]'
+    cmd = [exe, '-p', '--output-format', 'stream-json', '--sandbox', 'enabled', '--trust', '--workspace', str(cwd)]
+    return cmd + (['--model', model] if model else []) + (['--resume', session_id] if session_id else []) + ['--', prompt]
 
-def settings(profile, for_probe=False, deadline=None):
-    """Normal recognition uses explicit config or a passing version-bound report.
-
-    Probe candidates are hypotheses to exercise, never compatibility assertions.
-    """
-    defaults = dict(approval_patterns=[], prompt_lines=4, cancel_lines=20,
-                    busy_regex=r'(?i)(esc to (interrupt|cancel)|BUSY:)',
-                    approval_verified_version=None)
-    configured = load_config().get('profiles', {}).get(profile, {})
-    if for_probe:
-        if profile == 'agy':
-            defaults.update(approval_patterns=[r'^Allow creation of this file\?$'], prompt_lines=8,
-                            approval_verified_version='candidate from historical 1.3.5; currently under test')
+def _iter_events(profile, log_path):
+    if not Path(log_path).is_file():
+        return
+    for raw in Path(log_path).read_text('utf-8', 'replace').splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line) if line.startswith('{') else None
+        except ValueError:
+            obj = None
+        if not isinstance(obj, dict):
+            yield ('info', f'[raw] {line}')
+        elif profile == 'codex':
+            kind, item = obj.get('type'), obj.get('item') or {}
+            if kind == 'thread.started' and obj.get('thread_id'):
+                yield ('session', obj['thread_id'])
+            elif kind == 'item.completed' and item.get('type') == 'agent_message':
+                yield ('block', item.get('text', ''))
+            elif kind == 'item.completed' and item.get('type') == 'command_execution':
+                yield ('info', f"[cmd exit={item.get('exit_code')}] {item.get('command', '')}")
+            elif kind in ('error', 'turn.failed'):
+                yield ('info', f"[error] {obj.get('message') or (obj.get('error') or {}).get('message', '')}")
+        elif profile == 'agy':
+            ev, su, res = obj.get('event'), obj.get('step_update') or {}, obj.get('result') or {}
+            if (cid := obj.get('conversation_id') or su.get('conversation_id') or res.get('conversation_id')):
+                yield ('session', cid)
+            if ev == 'init':
+                yield ('info', f"[init] model={(obj.get('init') or {}).get('model')}")
+            elif ev == 'step_update' and su.get('step_type') == 'agent_response':
+                yield ('delta', su.get('step_index', 0), su.get('text_delta', ''), su.get('state') == 'DONE')
+            elif ev == 'step_update' and su.get('step_type') == 'tool' and su.get('state') == 'DONE':
+                yield ('info', f"[tool] {su.get('tool_name')}")
+            elif ev == 'result':
+                yield ('fallback', res.get('response', ''))
+                yield ('info', f"[result] status={res.get('status')}")
         elif profile == 'cursor':
-            defaults.update(approval_patterns=[r'^\s*Write to this file\?$'], prompt_lines=8,
-                            approval_verified_version='candidate observed 2026-10-18; currently under test')
-    elif 'approval_patterns' not in configured:
-        import capabilities
-        report = capabilities.latest(profile)
-        if report:
-            current = version(profile, timeout=min(5, max(.001, deadline-time.monotonic()))) if deadline else version(profile)
-            comparison = capabilities.comparison(profile, current, check_version=False)
-            check = report['checks'].get('approval', {})
-            if comparison['version_matches'] and check.get('status') == 'passed':
-                defaults.update(approval_patterns=check.get('patterns', []),
-                                prompt_lines=check.get('prompt_lines', 4),
-                                approval_verified_version=report['version'])
-    defaults.update(configured)
-    return defaults
+            if obj.get('session_id'):
+                yield ('session', obj['session_id'])
+            kind = obj.get('type')
+            if kind == 'system' and obj.get('subtype') == 'init':
+                yield ('info', f"[init] model={obj.get('model')}")
+            elif kind == 'assistant':
+                parts = ((obj.get('message') or {}).get('content')) or []
+                yield ('block', ''.join(p.get('text', '') for p in parts if isinstance(p, dict) and p.get('type') == 'text'))
+            elif kind == 'tool_call' and obj.get('subtype') == 'completed':
+                yield ('info', f"[tool] {next(iter(obj.get('tool_call') or {}), 'tool')}")
+            elif kind == 'result':
+                if not obj.get('is_error') and isinstance(obj.get('result'), str):
+                    yield ('fallback', obj['result'])
+                yield ('info', f"[result] is_error={obj.get('is_error')} duration_ms={obj.get('duration_ms')}")
 
+def parse_log(profile, log_path):
+    session_id, blocks, steps, fallback = None, [], {}, None
+    for ev in _iter_events(profile, log_path):
+        if ev[0] == 'session':
+            session_id = ev[1]
+        elif ev[0] == 'block' and ev[1].strip():
+            blocks.append(ev[1].strip())
+        elif ev[0] == 'delta' and ev[2]:
+            steps[ev[1]] = steps.get(ev[1], '') + ev[2]
+        elif ev[0] == 'fallback' and ev[1].strip():
+            fallback = ev[1].strip()
+    if profile == 'agy':
+        blocks = [steps[k].strip() for k in sorted(steps) if steps[k].strip()]
+    if not blocks and fallback:
+        blocks = [fallback]
+    return session_id, (blocks[-1] if blocks else ''), '\n\n'.join(blocks)
 
-def version(profile, timeout=5):
-    executable = resolve_executable(profile)
-    if not executable:
-        return None
-    try:
-        process = subprocess.run([executable, '--version'], capture_output=True, text=True, timeout=timeout)
-        return process.stdout.strip()[:200] if process.returncode == 0 else None
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+def format_log(profile, log_path, tail=50):
+    lines, buf = [], {}
+    for ev in _iter_events(profile, log_path):
+        if ev[0] in ('info', 'block') and ev[1].strip():
+            lines.append(ev[1].strip())
+        elif ev[0] == 'delta':
+            buf[ev[1]] = buf.get(ev[1], '') + ev[2]
+            if ev[3] and buf.get(ev[1], '').strip():
+                lines.append(buf.pop(ev[1]).strip())
+    lines.extend(buf[k].strip() for k in sorted(buf) if buf[k].strip())
+    return '\n'.join(lines[-tail:] if tail > 0 else lines)

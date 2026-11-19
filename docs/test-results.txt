@@ -1,8 +1,0 @@
-..........................................................................................................................................................................
-----------------------------------------------------------------------
-Ran 170 tests in 53.577s
-
-OK
-snapshot benchmark 1501 files: full=0.0390s cached=0.0261s
-direct launch cases=40 native-pending=10 exact-server-notifications=10 native-exit-1=40
-actual transient reaper samples: []

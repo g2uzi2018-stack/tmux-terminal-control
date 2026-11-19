@@ -1,83 +1,50 @@
 #!/usr/bin/env python3
-"""Install a standalone peer-coworkers package without changing global CLI configuration."""
-import argparse
+"""Install peer-coworkers skill by backing up any existing installation and copying files."""
+import argparse, os, shutil, sys, tempfile, uuid
 from datetime import datetime, timezone
-import hashlib
-import os
 from pathlib import Path
-import shutil
-import sys
-import tempfile
-import uuid
 
-
-def package_sha256(directory):
-    digest = hashlib.sha256()
-    for path in sorted(directory.rglob('*'), key=lambda item: item.as_posix()):
-        if path.is_file():
-            relative = path.relative_to(directory).as_posix().encode('utf-8', 'surrogateescape')
-            digest.update(relative + b'\0')
-            digest.update(hashlib.sha256(path.read_bytes()).digest())
-    return digest.hexdigest()
-
+REQUIRED = ('LICENSE', 'NOTICE', 'SKILL.md', 'references/model-selection.md',
+            'scripts/cowork.py', 'scripts/profiles.py', 'scripts/audit.py')
 
 def install(destination):
-    source = Path(__file__).resolve().parents[1] / 'skills' / 'peer-coworkers'
-    destination = destination.expanduser().absolute()
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    backup = None
-    staging = Path(tempfile.mkdtemp(prefix='.peer-coworkers-install-', dir=destination.parent))
+    root, dest = Path(__file__).resolve().parents[1], destination.expanduser().absolute()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    backup, staging = None, Path(tempfile.mkdtemp(prefix='.peer-coworkers-install-', dir=dest.parent))
     try:
-        # Copy the standalone package without carrying generated Python caches.
-        shutil.copytree(source, staging, dirs_exist_ok=True, symlinks=False,
+        shutil.copytree(root / 'skills' / 'peer-coworkers', staging, dirs_exist_ok=True, symlinks=False,
                         ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
         for name in ('LICENSE', 'NOTICE'):
-            shutil.copyfile(Path(__file__).resolve().parents[1] / name, staging / name)
-        required = ['LICENSE', 'NOTICE', 'SKILL.md', 'scripts/cowork.py', 'scripts/common.py', 'scripts/session.py',
-                    'scripts/input.py', 'scripts/wait.py', 'scripts/profiles.py',
-                    *['scripts/' + name + '.py' for name in ('tasks', 'config', 'lease', 'records',
-                      'results', 'snapshot', 'observation', 'interactions', 'followups',
-                      'capabilities', 'probe', 'approvals', 'timing')]]
-        for name in required:
-            if not (staging / name).is_file():
-                raise RuntimeError('missing package file: ' + name)
-        fingerprint = package_sha256(staging)
-        if destination.exists() or destination.is_symlink():
-            backups = destination.parent / '.peer-coworkers-backups'
+            shutil.copyfile(root / name, staging / name)
+        for rel in REQUIRED:
+            if not (staging / rel).is_file():
+                raise RuntimeError(f'missing package file: {rel}')
+        if dest.exists() or dest.is_symlink():
+            backups = dest.parent / '.peer-coworkers-backups'
             backups.mkdir(exist_ok=True)
-            backup = backups / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex)
-            destination.rename(backup)
+            backup = backups / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8])
+            dest.rename(backup)
         try:
-            staging.rename(destination)
+            staging.rename(dest)
         except OSError:
             if backup is not None:
-                backup.rename(destination)
+                backup.rename(dest)
             raise
-        legacy = destination.parent / 'tmux-tui'
-        if legacy.exists():
-            print('Notice: legacy tmux-tui directory preserved: ' + str(legacy))
-        return destination, backup, fingerprint
+        return dest, backup
     finally:
         if staging.exists():
             shutil.rmtree(staging)
 
-
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--dest', type=Path, default=Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex') / 'skills' / 'peer-coworkers')
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--dest', type=Path, default=Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex') / 'skills' / 'peer-coworkers')
     try:
-        destination, backup, fingerprint = install(args.dest)
-        print('Installed: ' + str(destination))
-        print('Package SHA-256: ' + fingerprint)
-        if backup:
-            print('Previous installation backed up: ' + str(backup))
-        print('Available on the next turn. Global config was preserved.')
+        dest, backup = install(p.parse_args().dest)
+        print(f'Installed: {dest}' + (f'\nBacked up previous: {backup}' if backup else ''))
         return 0
     except (OSError, RuntimeError) as exc:
-        print('error: ' + str(exc), file=sys.stderr)
+        print(f'error: {exc}', file=sys.stderr)
         return 1
-
 
 if __name__ == '__main__':
     sys.exit(main())
