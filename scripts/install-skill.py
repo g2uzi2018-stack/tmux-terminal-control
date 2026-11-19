@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Install peer-coworkers skill by backing up any existing installation and copying files."""
+"""Install peer-coworkers skill to Codex skills directory, overwriting any existing copy."""
 import argparse, os, shutil, sys, tempfile, uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 REQUIRED = ('LICENSE', 'NOTICE', 'SKILL.md', 'references/model-selection.md',
@@ -10,7 +9,7 @@ REQUIRED = ('LICENSE', 'NOTICE', 'SKILL.md', 'references/model-selection.md',
 def install(destination):
     root, dest = Path(__file__).resolve().parents[1], destination.expanduser().absolute()
     dest.parent.mkdir(parents=True, exist_ok=True)
-    backup, staging = None, Path(tempfile.mkdtemp(prefix='.peer-coworkers-install-', dir=dest.parent))
+    old, staging = None, Path(tempfile.mkdtemp(prefix='.peer-coworkers-install-', dir=dest.parent))
     try:
         shutil.copytree(root / 'skills' / 'peer-coworkers', staging, dirs_exist_ok=True, symlinks=False,
                         ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
@@ -20,27 +19,26 @@ def install(destination):
             if not (staging / rel).is_file():
                 raise RuntimeError(f'missing package file: {rel}')
         if dest.exists() or dest.is_symlink():
-            backups = dest.parent / '.peer-coworkers-backups'
-            backups.mkdir(exist_ok=True)
-            backup = backups / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8])
-            dest.rename(backup)
+            old = dest.parent / f'.peer-coworkers-old-{uuid.uuid4().hex[:8]}'
+            dest.rename(old)
         try:
             staging.rename(dest)
         except OSError:
-            if backup is not None:
-                backup.rename(dest)
+            if old is not None and not (dest.exists() or dest.is_symlink()):
+                old.rename(dest)
             raise
-        return dest, backup
+        return dest
     finally:
         if staging.exists():
             shutil.rmtree(staging)
+        if old is not None:
+            old.unlink() if old.is_symlink() else (shutil.rmtree(old) if old.exists() else None)
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dest', type=Path, default=Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex') / 'skills' / 'peer-coworkers')
     try:
-        dest, backup = install(p.parse_args().dest)
-        print(f'Installed: {dest}' + (f'\nBacked up previous: {backup}' if backup else ''))
+        print(f'Installed: {install(p.parse_args().dest)}')
         return 0
     except (OSError, RuntimeError) as exc:
         print(f'error: {exc}', file=sys.stderr)

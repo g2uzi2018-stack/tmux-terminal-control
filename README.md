@@ -11,7 +11,7 @@ python3 scripts/install-skill.py
 python3 "${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py" doctor
 ```
 
-The installer backs up any previous installation under `.peer-coworkers-backups/`, copies the standalone skill package without touching global CLI configuration, and preserves `LICENSE` and `NOTICE`.
+The installer overwrites any existing installation at the target directory, copies the standalone skill package without touching global CLI configuration, and preserves `LICENSE` and `NOTICE`.
 
 ## Commands
 
