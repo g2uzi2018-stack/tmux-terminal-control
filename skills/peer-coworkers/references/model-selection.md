@@ -1,19 +1,21 @@
 # 模型选型
 
-按任务、用户指定和当前 CLI 能力选模型。用户已升级 Google agy 订阅，适合分包时积极使用 agy。以下分工按 2026-11-19 的用户要求更新，默认使用 High 档位，具体任务可调整。小型强耦合工作由主代理直接完成。模型参数属于单个任务。
+按任务、用户指定和当前 CLI 能力选模型，积极使用已有 agy/Cursor 额度；默认 High、标准速度，小型强耦合工作由主代理直接完成。模型参数仅作用于单个任务。
 
 | 工作 | 默认模型 | 派工参数 |
 | --- | --- | --- |
 | 与负责调研的主代理商议方案 | Gemini 4 Argon High | `--profile agy --model gemini-4-argon-high` |
-| Argon 与主代理未达成一致时参与方案讨论 | Claude Opus 5.5 High | `--profile agy --model claude-opus-5-5-high` |
+| 重要方案的独立意见 | Grok 4.7 High | `--profile cursor --model grok-4.7-high` |
+| 方案存在实质分歧时参与讨论 | Claude Opus 5.5 High | `--profile agy --model claude-opus-5-5-high` |
 | 按已明确的方案实现 | Gemini 4 Hydrogen High | `--profile agy --model gemini-4-hydrogen-high` |
+| 边界清楚的日常实现（可选） | Composer 2.5 | `--profile cursor --model composer-2.5` |
 
-方案讨论向 Argon 提供原始要求、调研证据和候选方案。出现分歧时，将双方理由、证据和具体争议交给 Opus 讨论，主代理结合讨论结果作出决定。实现包向 Hydrogen 交付已确定的方案、输入、写入范围和验收条件，再由主代理集成与独立验收。
+Argon 与主代理商议；重要方案另请 Grok 基于原始要求、调研证据与候选方案独立提出意见，再比较分歧，必要时请 Opus，主代理裁决。实现交付已定方案、写入范围与验收条件，由主代理集成验收；不为凑模型额外派工。
 
-以上精确 ID 已在 agy 1.5.12 的 `agy models` 目录中发现。调用前按当前目录核对，并在启动日志（`round-N.log` 的 init 事件）中核对实际模型。
+调用前用 `agy models` / `cursor-agent models` 核对精确 ID，并在 `round-N.log` 的 init 事件核对实际模型；不根据后缀拼接参数。
 
-- 轻量检索、资料整理等任务仍可按需选用 `--profile agy --model gemini-3.8-flash-high`。
-- Cursor 使用 `--profile cursor --model cursor-grok-4.6-xhigh`，必要时在 `round-N.log` 的 init 事件核对模型；用实时 `cursor-agent models` 目录核实精确 ID，避免根据后缀拼接参数。
-- 默认标准速度，只有用户当次指定才选 Fast。Gemini Flash 是模型系列，入口没有独立 Fast 控制时记录为不适用。模型或速度无法核实时记录未知，用户指定的模型不可用时报告实际情况。
+- 轻量检索、资料整理可按需选用 `--profile agy --model gemini-3.8-flash-high`。
+- Cursor 优先使用 Grok/Composer；同一模型换入口不算异构意见。`cursor-grok-4.6-xhigh` 仅显式备用，不静默替换用户指定模型。
+- Fast 仅用户当次指定时启用；Flash 是模型系列。实际模型或速度无法核实时记录未知。
 
-模型目录只证明发现，任务记录以实际日志和交付为准。独立审查依据具体发现与证据。
+用途参考 [Cursor 官方说明](https://prod.cursor.com/help/models-and-usage/available-models)，不视为本地能力排名；目录列出不代表调用成功，验收以实际日志、产物和证据为准。
