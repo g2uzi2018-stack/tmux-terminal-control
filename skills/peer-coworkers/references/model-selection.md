@@ -4,14 +4,14 @@
 
 | 工作 | 默认模型 | 派工参数 |
 | --- | --- | --- |
-| 与负责调研的主代理商议方案 | Gemini 4 Argon High | `--profile agy --model gemini-4-argon-high` |
-| Argon 额度不足或不可用时接替方案商议 | Gemini 4 Neon High | `--profile agy --model gemini-4-neon-high` |
+| 与负责调研的主代理商议方案 | Gemini 4 Neon High | `--profile agy --model gemini-4-neon-high` |
+| 商议跨仓库迁移、复杂架构取舍等长链路方案 | Gemini 4 Carbon High | `--profile agy --model gemini-4-carbon-high` |
 | 重要方案的独立意见 | Grok 4.7 High | `--profile cursor --model grok-4.7-high` |
 | 方案存在实质分歧时参与讨论 | Claude Opus 5.5 High | `--profile agy --model claude-opus-5-5-high` |
 | 按已明确的方案实现 | Gemini 4 Hydrogen High | `--profile agy --model gemini-4-hydrogen-high` |
 | 边界清楚的日常实现（可选） | Composer 2.5 | `--profile cursor --model composer-2.5` |
 
-优先由 Argon 与主代理商议，不可用时由主代理切换 Neon 并说明；重要方案另请 Grok 基于原始要求、调研证据与候选方案独立提出意见，再比较分歧，必要时请 Opus，主代理裁决。实现交付已定方案、写入范围与验收条件，由主代理集成验收；不为凑模型额外派工。
+默认由 Neon 与主代理商议。需要持续推理和权衡多项约束的长链路方案由 Carbon 参与商议。重要方案另请 Grok 基于原始要求、调研证据与候选方案独立提出意见，再比较分歧，必要时请 Opus，主代理裁决。实现交付已定方案、写入范围与验收条件，由主代理集成验收；不为凑模型额外派工。
 
 调用前用 `agy models` / `cursor-agent models` 核对精确 ID，并在 `round-N.log` 的 init 事件核对实际模型；不根据后缀拼接参数。
 
