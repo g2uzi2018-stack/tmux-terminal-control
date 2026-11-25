@@ -1,14 +1,15 @@
 # 模型选型
 
-按任务、用户指定和当前 CLI 能力选模型，积极使用已有 agy/Cursor 额度；默认 High、标准速度，小型强耦合工作由主代理直接完成。模型参数仅作用于单个任务。
+按任务、用户指定和当前 CLI 能力选模型，积极使用已有 agy/Cursor 额度。默认使用标准速度。Neon 与 Hydrogen 用 XHigh，具体模型与档位见下表。小型强耦合工作由主代理直接完成。模型参数仅作用于单个任务。
 
 | 工作 | 默认模型 | 派工参数 |
 | --- | --- | --- |
-| 与负责调研的主代理商议方案 | Gemini 4 Neon High | `--profile agy --model gemini-4-neon-high` |
+| 与负责调研的主代理商议方案 | Gemini 4 Neon XHigh | `--profile agy --model gemini-4-neon-xhigh` |
 | 商议跨仓库迁移、复杂架构取舍等长链路方案 | Gemini 4 Carbon High | `--profile agy --model gemini-4-carbon-high` |
 | 重要方案的独立意见 | Grok 4.7 High | `--profile cursor --model grok-4.7-high` |
 | 方案存在实质分歧时参与讨论 | Claude Opus 5.5 High | `--profile agy --model claude-opus-5-5-high` |
-| 按已明确的方案实现 | Gemini 4 Hydrogen High | `--profile agy --model gemini-4-hydrogen-high` |
+| 按已明确的方案实现 | Gemini 4 Hydrogen XHigh | `--profile agy --model gemini-4-hydrogen-xhigh` |
+| 已实现的代码检查 | Gemini 4 Hydrogen XHigh | `--profile agy --model gemini-4-hydrogen-xhigh` |
 | 边界清楚的日常实现（可选） | Composer 2.5 | `--profile cursor --model composer-2.5` |
 
 默认由 Neon 与主代理商议。需要持续推理和权衡多项约束的长链路方案由 Carbon 参与商议。重要方案另请 Grok 基于原始要求、调研证据与候选方案独立提出意见，再比较分歧，必要时请 Opus，主代理裁决。实现交付已定方案、写入范围与验收条件，由主代理集成验收；不为凑模型额外派工。

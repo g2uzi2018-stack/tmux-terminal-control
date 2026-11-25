@@ -10,7 +10,7 @@ description: 无头调用独立 CLI（codex / agy / cursor）执行边界清晰�
 ```bash
 P=scripts/cowork.py   # 已安装后为 ${CODEX_HOME:-$HOME/.codex}/skills/peer-coworkers/scripts/cowork.py
 python3 "$P" doctor
-python3 "$P" start --cwd "$PWD" --profile agy --model gemini-4-hydrogen-high --task-file task.md --write src [--name label]
+python3 "$P" start --cwd "$PWD" --profile agy --model gemini-4-hydrogen-xhigh --task-file task.md --write src [--name label]
 python3 "$P" wait --run "$RUN" [--timeout 120]
 python3 "$P" send --run "$RUN" --file reply.md
 python3 "$P" log --run "$RUN" [--tail 50]
